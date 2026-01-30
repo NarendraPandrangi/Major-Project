@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { disputeAPI, aiAPI } from '../api/client';
 import Chat from '../components/Chat';
 import { FileText, Calendar, User, ArrowLeft, Shield, AlertTriangle, Scale, CheckCircle, Sparkles } from 'lucide-react';
-import { sendDisputeAcceptedEmail, sendDisputeRejectedEmail } from '../utils/emailService';
+import { sendDisputeAcceptedEmail, sendDisputeRejectedEmail } from '../services/emailService';
 import './DisputeDetails.css';
 
 const DisputeDetails = () => {
@@ -62,15 +62,17 @@ const DisputeDetails = () => {
         try {
             await disputeAPI.accept(id);
 
-            // Send email notification to plaintiff
+            // Send email notification to plaintiff (using separate dispute service)
             if (dispute) {
-                const disputeData = {
-                    id: dispute.id,
-                    title: dispute.title,
-                    defendantEmail: user.email,
+                const emailParams = {
+                    to_email: dispute.creator_email,
+                    to_name: dispute.creator_email.split('@')[0],
+                    dispute_id: dispute.id,
+                    dispute_title: dispute.title,
+                    category: dispute.category
                 };
 
-                sendDisputeAcceptedEmail(dispute.creator_email, disputeData)
+                sendDisputeAcceptedEmail(emailParams)
                     .then(result => {
                         if (result.success) {
                             console.log('Acceptance notification email sent to plaintiff');
@@ -94,15 +96,17 @@ const DisputeDetails = () => {
         try {
             await disputeAPI.reject(id);
 
-            // Send email notification to plaintiff
+            // Send email notification to plaintiff (using separate dispute service)
             if (dispute) {
-                const disputeData = {
-                    id: dispute.id,
-                    title: dispute.title,
-                    defendantEmail: user.email,
+                const emailParams = {
+                    to_email: dispute.creator_email,
+                    to_name: dispute.creator_email.split('@')[0],
+                    dispute_id: dispute.id,
+                    dispute_title: dispute.title,
+                    category: dispute.category
                 };
 
-                sendDisputeRejectedEmail(dispute.creator_email, disputeData)
+                sendDisputeRejectedEmail(emailParams)
                     .then(result => {
                         if (result.success) {
                             console.log('Rejection notification email sent to plaintiff');

@@ -8,6 +8,7 @@ import {
     sendPasswordResetEmail,
     sendEmailVerification
 } from '../firebase/config';
+import { sendWelcomeEmail } from '../services/emailService';
 
 const AuthContext = createContext(null);
 
@@ -85,6 +86,19 @@ export const AuthProvider = ({ children }) => {
 
             setUser(user);
             setIsAuthenticated(true);
+
+            // Send welcome email using separate service credentials
+            try {
+                await sendWelcomeEmail({
+                    to_email: user.email,
+                    to_name: user.full_name || user.email.split('@')[0],
+                    user_id: user.id
+                });
+                console.log('Welcome email sent successfully');
+            } catch (emailError) {
+                // Don't fail registration if email fails
+                console.error('Failed to send welcome email:', emailError);
+            }
 
             return { success: true, user };
         } catch (error) {

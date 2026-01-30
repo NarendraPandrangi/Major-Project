@@ -17,7 +17,7 @@ class EmailService:
     def send_email(self, to_email: str, subject: str, html_content: str):
         """Send an email using SMTP"""
         if not self.sender_email or not self.sender_password:
-            print("ℹ️  Backend SMTP not configured. Email notifications handled by frontend EmailJS.")
+            print("ℹ️  Backend SMTP not configured. Email notifications handled by frontend EmailJS (separate services for welcome & dispute emails).")
             return False
             
         try:

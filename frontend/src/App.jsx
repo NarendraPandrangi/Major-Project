@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Home from './pages/Home';
 import DisputeForm from './pages/DisputeForm';
 import DisputeDetails from './pages/DisputeDetails';
+import './emailConfigValidator'; // Validate email config on startup
 import './index.css';
 
 // Protected Route Component

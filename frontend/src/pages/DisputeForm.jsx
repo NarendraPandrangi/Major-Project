@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { disputeAPI } from '../api/client';
 import { FileText, User, AlertCircle, CheckCircle, Loader } from 'lucide-react';
-import { sendDisputeFiledEmail, sendDisputeConfirmationEmail } from '../utils/emailService';
+import { sendDisputeFiledEmail, sendDisputeConfirmationEmail } from '../services/emailService';
 import './DisputeForm.css';
 
 const DisputeForm = () => {
@@ -81,17 +81,17 @@ const DisputeForm = () => {
             const response = await disputeAPI.create(formData);
             const disputeId = response.id;
 
-            // Send email notifications via EmailJS
-            const disputeData = {
-                id: disputeId,
-                title: formData.title,
-                category: formData.category,
-                plaintiffEmail: user.email,
-                defendantEmail: formData.defendant_email
+            // Send email notifications via EmailJS (using separate dispute service)
+            const emailParams = {
+                to_email: formData.defendant_email,
+                to_name: formData.defendant_email.split('@')[0],
+                dispute_id: disputeId,
+                dispute_title: formData.title,
+                category: formData.category
             };
 
             // Send notification to defendant
-            sendDisputeFiledEmail(formData.defendant_email, disputeData)
+            sendDisputeFiledEmail(emailParams)
                 .then(result => {
                     if (result.success) {
                         console.log('Defendant notification email sent successfully');
@@ -100,7 +100,15 @@ const DisputeForm = () => {
                 .catch(err => console.error('Failed to send defendant email:', err));
 
             // Send confirmation to plaintiff
-            sendDisputeConfirmationEmail(user.email, disputeData)
+            const confirmationParams = {
+                to_email: user.email,
+                to_name: user.full_name || user.email.split('@')[0],
+                dispute_id: disputeId,
+                dispute_title: formData.title,
+                category: formData.category
+            };
+
+            sendDisputeConfirmationEmail(confirmationParams)
                 .then(result => {
                     if (result.success) {
                         console.log('Plaintiff confirmation email sent successfully');
