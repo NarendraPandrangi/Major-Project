@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { dashboardAPI, disputeAPI } from '../api/client';
+import { dashboardAPI, disputeAPI, notificationsAPI } from '../api/client';
 import {
     FileText,
     TrendingUp,
@@ -18,9 +18,13 @@ const Dashboard = () => {
     const { user, logout } = useAuth();
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [notifications, setNotifications] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [showNotifications, setShowNotifications] = useState(false);
 
     useEffect(() => {
         fetchDashboardStats();
+        fetchNotifications();
     }, []);
 
     const fetchDashboardStats = async () => {
@@ -33,6 +37,52 @@ const Dashboard = () => {
             setLoading(false);
         }
     };
+
+    const fetchNotifications = async () => {
+        try {
+            console.log('Fetching notifications...');
+            const response = await notificationsAPI.getAll();
+            console.log('Notifications response:', response.data);
+
+            if (response.data) {
+                setNotifications(response.data);
+                const unread = response.data.filter(n => !n.is_read).length;
+                console.log('Unread count:', unread);
+                setUnreadCount(unread);
+            }
+        } catch (error) {
+            console.error('Failed to fetch notifications:', error);
+        }
+    };
+
+    const handleNotificationClick = async (notif) => {
+        try {
+            if (!notif.is_read) {
+                await notificationsAPI.markAsRead(notif.id);
+                setUnreadCount(prev => Math.max(0, prev - 1));
+                setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n));
+            }
+            setShowNotifications(false);
+            if (notif.link) navigate(notif.link);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleMarkAllRead = async () => {
+        try {
+            // Assuming endpoint exists or we loop through
+            // For efficiency, we should have a bulk endpoint, but iterating is fine for now if API missing
+            // client.js has markAllAsRead
+            await notificationsAPI.markAllAsRead();
+            setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+            setUnreadCount(0);
+        } catch (err) {
+            console.error('Failed to mark all as read', err);
+        }
+    };
+
+    // Helper to close dropdown when clicking outside could be added, but keeping it simple for now.
 
     const handleAccept = async (id) => {
         if (!window.confirm("Accept this case to begin resolution?")) return;
@@ -67,10 +117,56 @@ const Dashboard = () => {
                         <div className="header-left">
                             <h1>AI Dispute Resolver</h1>
                         </div>
-                        <div className="header-right">
-                            <button className="icon-btn">
+                        <div className="header-right" style={{ position: 'relative' }}>
+                            <button
+                                className="icon-btn"
+                                onClick={() => setShowNotifications(!showNotifications)}
+                                title="Notifications"
+                            >
                                 <Bell size={20} />
+                                {unreadCount > 0 && <span className="notification-badge">{unreadCount}</span>}
                             </button>
+
+                            {showNotifications && (
+                                <div className="notifications-dropdown">
+                                    <div style={{ padding: '12px', borderBottom: '1px solid var(--border)', fontWeight: '600', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span>Notifications</span>
+                                        {unreadCount > 0 && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleMarkAllRead();
+                                                }}
+                                                style={{ border: 'none', background: 'none', color: 'var(--primary-600)', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600 }}
+                                            >
+                                                Mark all read
+                                            </button>
+                                        )}
+                                    </div>
+                                    {notifications.length === 0 ? (
+                                        <div className="empty-notifications">No notifications</div>
+                                    ) : (
+                                        notifications.slice(0, 5).map(notif => (
+                                            <div
+                                                key={notif.id}
+                                                className={`notification-item ${!notif.is_read ? 'unread' : ''}`}
+                                            >
+                                                <div
+                                                    onClick={() => handleNotificationClick(notif)}
+                                                    style={{ flex: 1 }}
+                                                >
+                                                    <div className="notification-title">{notif.title}</div>
+                                                    <div className="notification-message">{notif.message}</div>
+                                                    <div className="notification-time">
+                                                        {new Date(notif.created_at).toLocaleDateString()}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+
                             <div className="user-menu">
                                 <div className="user-avatar">
                                     {user?.profile_picture ? (
@@ -184,24 +280,50 @@ const Dashboard = () => {
                                                 </span>
                                                 {/* Accept Button for Defendant in Dashboard */}
                                                 {user && user.email === dispute.defendant_email && dispute.status === 'Open' && (
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation(); // prevent navigation
-                                                            handleAccept(dispute.id);
-                                                        }}
-                                                        className="btn-primary-sm"
-                                                        style={{
-                                                            fontSize: '0.75rem',
-                                                            padding: '0.25rem 0.5rem',
-                                                            background: 'var(--primary-600)',
-                                                            color: 'white',
-                                                            border: 'none',
-                                                            borderRadius: '4px',
-                                                            cursor: 'pointer'
-                                                        }}
-                                                    >
-                                                        Accept Case
-                                                    </button>
+                                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation(); // prevent navigation
+                                                                handleAccept(dispute.id);
+                                                            }}
+                                                            className="btn-primary-sm"
+                                                            style={{
+                                                                fontSize: '0.75rem',
+                                                                padding: '0.25rem 0.5rem',
+                                                                background: 'var(--primary-600)',
+                                                                color: 'white',
+                                                                border: 'none',
+                                                                borderRadius: '4px',
+                                                                cursor: 'pointer'
+                                                            }}
+                                                        >
+                                                            Accept
+                                                        </button>
+                                                        <button
+                                                            onClick={async (e) => {
+                                                                e.stopPropagation();
+                                                                if (!window.confirm("Reject this case? It will be closed effectively.")) return;
+                                                                try {
+                                                                    await disputeAPI.reject(dispute.id);
+                                                                    fetchDashboardStats();
+                                                                } catch (err) {
+                                                                    alert('Failed to reject: ' + (err.response?.data?.detail || err.message));
+                                                                }
+                                                            }}
+                                                            className="btn-danger-sm"
+                                                            style={{
+                                                                fontSize: '0.75rem',
+                                                                padding: '0.25rem 0.5rem',
+                                                                background: 'var(--error-600)',
+                                                                color: 'white',
+                                                                border: 'none',
+                                                                borderRadius: '4px',
+                                                                cursor: 'pointer'
+                                                            }}
+                                                        >
+                                                            Reject
+                                                        </button>
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>

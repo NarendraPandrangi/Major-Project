@@ -4,6 +4,7 @@ from typing import Optional, List, Union, Any
 from datetime import datetime
 import auth
 from database import get_firestore_db, Collections, FieldFilter
+from email_service import email_service
 import ast
 
 router = APIRouter()
@@ -150,6 +151,34 @@ async def create_dispute(dispute: DisputeCreate, current_user: dict = Depends(au
             "is_read": False,
             "created_at": current_time
         })
+        
+        # Send email to defendant
+        email_service.send_dispute_filed_notification(
+            to_email=dispute.defendant_email,
+            dispute_title=dispute.title,
+            plaintiff_email=current_user["email"],
+            dispute_id=doc_ref.id
+        )
+
+    # Notify Plaintiff (Confirmation)
+    notifications_ref = db.collection(Collections.NOTIFICATIONS) # Ensure ref is available
+    notifications_ref.add({
+        "user_id": current_user["id"],
+        "type": "dispute_filed_confirmation",
+        "title": "Dispute Filed Successfully",
+        "message": f"Your dispute '{dispute.title}' has been successfully filed. You will be notified when the defendant responds.",
+        "link": f"/dispute/{doc_ref.id}",
+        "is_read": False,
+        "created_at": current_time 
+    })
+    
+    # Send confirmation email to plaintiff
+    email_service.send_dispute_filed_confirmation(
+        to_email=current_user["email"],
+        dispute_title=dispute.title,
+        defendant_email=dispute.defendant_email,
+        dispute_id=doc_ref.id
+    )
     
     # helper to format response
     new_dispute["id"] = doc_ref.id
@@ -325,7 +354,73 @@ async def accept_dispute(dispute_id: str, current_user: dict = Depends(auth.get_
         "created_at": datetime.utcnow()
     })
     
+    # Get plaintiff email
+    plaintiff_doc = users_ref.document(data.get("user_id")).get()
+    if plaintiff_doc and plaintiff_doc.exists():
+        plaintiff_email = plaintiff_doc.to_dict().get("email")
+        # Send email to plaintiff
+        email_service.send_dispute_accepted_notification(
+            to_email=plaintiff_email,
+            dispute_title=data.get('title'),
+            defendant_email=current_user["email"],
+            dispute_id=dispute_id
+        )
+    
     return {"status": "success", "message": "Case accepted"}
+
+@router.post("/{dispute_id}/reject")
+async def reject_dispute(dispute_id: str, current_user: dict = Depends(auth.get_current_user_firestore)):
+    """Defendant rejects the dispute case"""
+    db = get_firestore_db()
+    disputes_ref = db.collection(Collections.DISPUTES)
+    
+    doc_ref = disputes_ref.document(dispute_id)
+    doc = doc_ref.get()
+    
+    if not doc or not doc.exists():
+        raise HTTPException(status_code=404, detail="Dispute not found")
+        
+    data = doc.to_dict()
+    
+    # Only defendant can reject
+    if data.get("defendant_email") != current_user["email"]:
+        raise HTTPException(status_code=403, detail="Only the defendant can reject this dispute")
+        
+    # Update status
+    update_data = {
+        "status": "Rejected",
+        "rejected_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow()
+    }
+    
+    doc_ref.update(update_data)
+    
+    # Notify Plaintiff
+    notifications_ref = db.collection(Collections.NOTIFICATIONS)
+    notifications_ref.add({
+        "user_id": data.get("user_id"), # Plaintiff ID
+        "type": "dispute_rejected",
+        "title": "Dispute Rejected",
+        "message": f"Your dispute '{data.get('title')}' has been rejected by the defendant.",
+        "link": f"/dispute/{dispute_id}",
+        "is_read": False,
+        "created_at": datetime.utcnow()
+    })
+    
+    # Get plaintiff email
+    users_ref = db.collection(Collections.USERS)
+    plaintiff_doc = users_ref.document(data.get("user_id")).get()
+    if plaintiff_doc and plaintiff_doc.exists():
+        plaintiff_email = plaintiff_doc.to_dict().get("email")
+        # Send email to plaintiff
+        email_service.send_dispute_rejected_notification(
+            to_email=plaintiff_email,
+            dispute_title=data.get('title'),
+            defendant_email=current_user["email"],
+            dispute_id=dispute_id
+        )
+    
+    return {"status": "success", "message": "Case rejected"}
 
 class MessageCreate(BaseModel):
     content: str

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, User, AlertCircle } from 'lucide-react';
+import { sendRegistrationEmail } from '../utils/emailService';
 import './Auth.css';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'your-google-client-id';
@@ -74,6 +75,18 @@ const Register = () => {
         setLoading(false);
 
         if (result.success) {
+            // Send welcome email via EmailJS
+            sendRegistrationEmail(formData.email, formData.username || formData.full_name)
+                .then(emailResult => {
+                    if (emailResult.success) {
+                        console.log('Welcome email sent successfully!');
+                    }
+                })
+                .catch(err => {
+                    console.error('Failed to send welcome email:', err);
+                    // Don't block navigation if email fails
+                });
+
             navigate('/dashboard');
         } else {
             setErrors({ submit: result.error });

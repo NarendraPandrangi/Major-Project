@@ -44,3 +44,21 @@ async def mark_as_read(notification_id: str, current_user: dict = Depends(auth.g
         
     notif_ref.update({"is_read": True})
     return {"status": "success"}
+
+@router.put("/read-all")
+async def mark_all_as_read(current_user: dict = Depends(auth.get_current_user_firestore)):
+    """Mark all notifications as read for current user"""
+    db = get_firestore_db()
+    notifications_ref = db.collection(Collections.NOTIFICATIONS)
+    
+    # Get all unread notifications for user
+    docs = notifications_ref.where(filter=FieldFilter("user_id", "==", current_user["id"])).get()
+    
+    count = 0
+    for doc in docs:
+        data = doc.to_dict()
+        if not data.get("is_read"):
+            doc.reference.update({"is_read": True})
+            count += 1
+            
+    return {"status": "success", "updated_count": count}

@@ -64,6 +64,7 @@ export const disputesAPI = {
     updateStatus: (id, status) => api.put(`/api/disputes/${id}/status`, { status }),
     delete: (id) => api.delete(`/api/disputes/${id}`),
     accept: (id) => api.post(`/api/disputes/${id}/accept`),
+    reject: (id) => api.post(`/api/disputes/${id}/reject`),
     agree: (id, resolution_text) => api.post(`/api/disputes/${id}/agree`, { resolution_text }),
     sendMessage: (id, content) => api.post(`/api/disputes/${id}/messages`, { content }),
     getMessages: (id) => api.get(`/api/disputes/${id}/messages`),

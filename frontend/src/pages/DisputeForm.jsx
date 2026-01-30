@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { disputeAPI } from '../api/client';
 import { FileText, User, AlertCircle, CheckCircle, Loader } from 'lucide-react';
+import { sendDisputeFiledEmail, sendDisputeConfirmationEmail } from '../utils/emailService';
 import './DisputeForm.css';
 
 const DisputeForm = () => {
@@ -78,6 +79,34 @@ const DisputeForm = () => {
 
             // Submit dispute
             const response = await disputeAPI.create(formData);
+            const disputeId = response.id;
+
+            // Send email notifications via EmailJS
+            const disputeData = {
+                id: disputeId,
+                title: formData.title,
+                category: formData.category,
+                plaintiffEmail: user.email,
+                defendantEmail: formData.defendant_email
+            };
+
+            // Send notification to defendant
+            sendDisputeFiledEmail(formData.defendant_email, disputeData)
+                .then(result => {
+                    if (result.success) {
+                        console.log('Defendant notification email sent successfully');
+                    }
+                })
+                .catch(err => console.error('Failed to send defendant email:', err));
+
+            // Send confirmation to plaintiff
+            sendDisputeConfirmationEmail(user.email, disputeData)
+                .then(result => {
+                    if (result.success) {
+                        console.log('Plaintiff confirmation email sent successfully');
+                    }
+                })
+                .catch(err => console.error('Failed to send confirmation email:', err));
 
             setSuccess(true);
 

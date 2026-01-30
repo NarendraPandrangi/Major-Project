@@ -116,11 +116,12 @@
 }
 
 .suggestion-box {
-    background: white;
+    background: var(--surface);
     padding: var(--spacing-lg);
     border-radius: var(--radius-lg);
     border-left: 4px solid var(--accent-500);
     margin-bottom: var(--spacing-md);
+    border: 1px solid var(--border-color);
 }
 
 .suggestion-header {
@@ -225,13 +226,14 @@
 
 /* AI Analysis Styles */
 .ai-analysis-content {
-    background: white;
+    background: var(--surface);
     padding: var(--spacing-md);
     border-radius: var(--radius-md);
     white-space: pre-wrap;
     font-size: var(--font-size-md);
     line-height: 1.6;
     color: var(--text-primary);
+    border: 1px solid var(--border-color);
 }
 
 .analyze-btn {

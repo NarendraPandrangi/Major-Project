@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { disputeAPI, aiAPI } from '../api/client';
 import Chat from '../components/Chat';
 import { FileText, Calendar, User, ArrowLeft, Shield, AlertTriangle, Scale, CheckCircle, Sparkles } from 'lucide-react';
+import { sendDisputeAcceptedEmail, sendDisputeRejectedEmail } from '../utils/emailService';
 import './DisputeDetails.css';
 
 const DisputeDetails = () => {
@@ -60,10 +61,60 @@ const DisputeDetails = () => {
         setAccepting(true);
         try {
             await disputeAPI.accept(id);
+
+            // Send email notification to plaintiff
+            if (dispute) {
+                const disputeData = {
+                    id: dispute.id,
+                    title: dispute.title,
+                    defendantEmail: user.email,
+                };
+
+                sendDisputeAcceptedEmail(dispute.creator_email, disputeData)
+                    .then(result => {
+                        if (result.success) {
+                            console.log('Acceptance notification email sent to plaintiff');
+                        }
+                    })
+                    .catch(err => console.error('Failed to send acceptance email:', err));
+            }
+
             await fetchDispute(); // Refresh to update status
         } catch (err) {
             console.error('Failed to accept dispute:', err);
             alert('Failed to accept dispute. ' + (err.response?.data?.detail || err.message));
+        } finally {
+            setAccepting(false);
+        }
+    };
+
+    const handleReject = async () => {
+        if (!window.confirm("Are you sure you want to reject this case?")) return;
+        setAccepting(true);
+        try {
+            await disputeAPI.reject(id);
+
+            // Send email notification to plaintiff
+            if (dispute) {
+                const disputeData = {
+                    id: dispute.id,
+                    title: dispute.title,
+                    defendantEmail: user.email,
+                };
+
+                sendDisputeRejectedEmail(dispute.creator_email, disputeData)
+                    .then(result => {
+                        if (result.success) {
+                            console.log('Rejection notification email sent to plaintiff');
+                        }
+                    })
+                    .catch(err => console.error('Failed to send rejection email:', err));
+            }
+
+            await fetchDispute();
+        } catch (err) {
+            console.error('Failed to reject dispute:', err);
+            alert('Failed to reject dispute.');
         } finally {
             setAccepting(false);
         }
@@ -188,13 +239,31 @@ const DisputeDetails = () => {
                                 <p style={{ margin: 0, color: 'var(--primary-700)' }}>Accept this case to begin the resolution process and open live chat.</p>
                             </div>
                         </div>
-                        <button
-                            onClick={handleAccept}
-                            disabled={accepting}
-                            className="btn-primary"
-                        >
-                            {accepting ? 'Accepting...' : 'Accept Case'}
-                        </button>
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                            <button
+                                onClick={handleAccept}
+                                disabled={accepting}
+                                className="btn-primary"
+                            >
+                                {accepting ? 'Processing...' : 'Accept Case'}
+                            </button>
+                            <button
+                                onClick={handleReject}
+                                disabled={accepting}
+                                className="btn-danger"
+                                style={{
+                                    background: 'var(--error-600)',
+                                    color: 'white',
+                                    border: 'none',
+                                    padding: '0.5rem 1rem',
+                                    borderRadius: 'var(--radius-md)',
+                                    cursor: 'pointer',
+                                    fontWeight: '600'
+                                }}
+                            >
+                                Reject Case
+                            </button>
+                        </div>
                     </div>
                 )}
 
@@ -227,6 +296,23 @@ const DisputeDetails = () => {
                                     style={{ width: '100%' }}
                                 >
                                     {accepting ? 'Accepting...' : 'Accept Case'}
+                                </button>
+                                <button
+                                    onClick={handleReject}
+                                    disabled={accepting}
+                                    className="btn-danger"
+                                    style={{
+                                        background: 'var(--error-600)',
+                                        color: 'white',
+                                        border: 'none',
+                                        padding: '0.5rem 1rem',
+                                        borderRadius: 'var(--radius-md)',
+                                        cursor: 'pointer',
+                                        fontWeight: '600',
+                                        width: '100%'
+                                    }}
+                                >
+                                    Reject Case
                                 </button>
                             </div>
                         )}
@@ -349,7 +435,7 @@ const DisputeDetails = () => {
 
                                     {aiAnalysis ? (
                                         <div className="ai-analysis-content fade-in" style={{ marginTop: '1rem' }}>
-                                            <div style={{ whiteSpace: 'pre-wrap', marginBottom: '1.5rem', fontStyle: 'italic' }}>{aiAnalysis}</div>
+                                            <div style={{ whiteSpace: 'pre-wrap', marginBottom: '1.5rem', fontStyle: 'italic', color: 'var(--text-primary)' }}>{aiAnalysis}</div>
 
                                             {dispute.ai_suggestions && dispute.ai_suggestions.length > 0 && (
                                                 <div className="suggestions-list" style={{ display: 'grid', gap: '1rem' }}>
@@ -358,13 +444,13 @@ const DisputeDetails = () => {
                                                             padding: '1rem',
                                                             border: '1px solid var(--border-color)',
                                                             borderRadius: '8px',
-                                                            background: 'white',
+                                                            background: 'var(--surface)',
                                                             display: 'flex',
                                                             flexDirection: 'column',
                                                             gap: '1rem'
                                                         }}>
-                                                            <div style={{ fontWeight: 600 }}>Option {suggestion.id}</div>
-                                                            <div>{suggestion.text}</div>
+                                                            <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Option {suggestion.id}</div>
+                                                            <div style={{ color: 'var(--text-secondary)' }}>{suggestion.text}</div>
                                                             <button
                                                                 className="btn-primary-sm"
                                                                 style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
@@ -543,7 +629,7 @@ const DisputeDetails = () => {
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

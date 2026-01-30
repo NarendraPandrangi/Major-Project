@@ -39,6 +39,7 @@ class UserResponse(BaseModel):
 async def register(user_data: UserCreate):
     """Register a new user with email and password"""
     from database import get_firestore_db, Collections, FieldFilter
+    from email_service import email_service
     
     db = get_firestore_db()
     
@@ -79,6 +80,12 @@ async def register(user_data: UserCreate):
     # Add to Firestore
     doc_ref = users_ref.add(user_doc)
     user_id = doc_ref[1].id
+    
+    # Send welcome email
+    email_service.send_registration_welcome(
+        to_email=user_data.email,
+        username=user_data.username
+    )
     
     # Create access token
     access_token = auth.create_access_token(
