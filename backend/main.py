@@ -26,6 +26,9 @@ app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"]
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
 from routers import ai
 app.include_router(ai.router, prefix="/api/ai", tags=["AI"])
+from routers import admin
+app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
+
 
 @app.get("/")
 async def root():

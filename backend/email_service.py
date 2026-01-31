@@ -261,6 +261,99 @@ class EmailService:
         </html>
         """
         return self.send_email(to_email, subject, html_content)
+    
+    def send_resolution_approved_notification(self, plaintiff_email: str, defendant_email: str, dispute_title: str, resolution_text: str, dispute_id: str):
+        """Send notification when admin approves a resolution"""
+        subject = f"Resolution Approved - {dispute_title}"
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+                .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
+                .button {{ display: inline-block; padding: 12px 24px; background: #10b981; color: white; text-decoration: none; border-radius: 6px; margin-top: 20px; }}
+                .footer {{ text-align: center; margin-top: 20px; color: #6b7280; font-size: 14px; }}
+                .resolution-box {{ background: white; padding: 15px; margin: 15px 0; border-radius: 8px; border-left: 4px solid #10b981; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>✅ Resolution Approved</h1>
+                </div>
+                <div class="content">
+                    <h2>Congratulations!</h2>
+                    <p>Hello,</p>
+                    <p>The resolution for your dispute has been <strong>approved by our admin team</strong>.</p>
+                    <p><strong>Dispute Title:</strong> {dispute_title}</p>
+                    <div class="resolution-box">
+                        <strong>Agreed Resolution:</strong><br>
+                        {resolution_text}
+                    </div>
+                    <p>This case is now officially resolved. You can view and download the settlement agreement from your dashboard.</p>
+                    <a href="http://localhost:5173/dispute/{dispute_id}" class="button">View Settlement Agreement</a>
+                </div>
+                <div class="footer">
+                    <p>This is an automated message from {self.app_name}. Please do not reply to this email.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        # Send to both parties
+        self.send_email(plaintiff_email, subject, html_content)
+        self.send_email(defendant_email, subject, html_content)
+        return True
+    
+    def send_resolution_rejected_notification(self, plaintiff_email: str, defendant_email: str, dispute_title: str, rejection_reason: str, dispute_id: str):
+        """Send notification when admin rejects a resolution"""
+        subject = f"Resolution Requires Revision - {dispute_title}"
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+                .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
+                .button {{ display: inline-block; padding: 12px 24px; background: #f59e0b; color: white; text-decoration: none; border-radius: 6px; margin-top: 20px; }}
+                .footer {{ text-align: center; margin-top: 20px; color: #6b7280; font-size: 14px; }}
+                .reason-box {{ background: #fef3c7; padding: 15px; margin: 15px 0; border-radius: 8px; border-left: 4px solid #f59e0b; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>⚠️ Resolution Requires Revision</h1>
+                </div>
+                <div class="content">
+                    <h2>Action Required</h2>
+                    <p>Hello,</p>
+                    <p>The proposed resolution for your dispute requires revision.</p>
+                    <p><strong>Dispute Title:</strong> {dispute_title}</p>
+                    <div class="reason-box">
+                        <strong>Admin Feedback:</strong><br>
+                        {rejection_reason}
+                    </div>
+                    <p>Please continue negotiations and propose a new resolution that addresses the concerns mentioned above.</p>
+                    <a href="http://localhost:5173/dispute/{dispute_id}" class="button">Continue Negotiation</a>
+                </div>
+                <div class="footer">
+                    <p>This is an automated message from {self.app_name}. Please do not reply to this email.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        # Send to both parties
+        self.send_email(plaintiff_email, subject, html_content)
+        self.send_email(defendant_email, subject, html_content)
+        return True
 
 # Singleton instance
 email_service = EmailService()
+

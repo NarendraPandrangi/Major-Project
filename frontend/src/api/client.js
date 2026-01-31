@@ -90,4 +90,21 @@ export const aiAPI = {
     getSuggestions: (disputeId) => api.post('/api/ai/suggestions', { dispute_id: disputeId }),
 };
 
+// Admin API
+export const adminAPI = {
+    getPendingApprovals: () => api.get('/api/admin/pending-approvals'),
+    approveResolution: (disputeId, adminNotes) => api.post(`/api/admin/${disputeId}/approve-resolution`, {
+        decision: 'approve',
+        admin_notes: adminNotes
+    }),
+    rejectResolution: (disputeId, adminNotes) => api.post(`/api/admin/${disputeId}/approve-resolution`, {
+        decision: 'reject',
+        admin_notes: adminNotes
+    }),
+    getStats: () => api.get('/api/admin/stats'),
+    getAllDisputes: () => api.get('/api/admin/all-disputes'),
+    getAllUsers: () => api.get('/api/admin/all-users'),
+};
+
 export default api;
+

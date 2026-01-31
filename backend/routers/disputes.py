@@ -94,12 +94,31 @@ async def agree_to_resolution(
     # Implementing simplistic overwrite for now based on user request "reflects".
     
     if p_agreed and d_agreed:
-        # Both agreed -> Resolve
+        # Both agreed -> Send to Admin for Approval
         final_update = {
-            "status": "Resolved",
-            "resolved_at": datetime.utcnow().isoformat()
+            "status": "PendingApproval",
+            "pending_approval_since": datetime.utcnow().isoformat()
         }
         doc_ref.update(final_update)
+        
+        # Notify admin (find all admin users)
+        users_ref = db.collection(Collections.USERS)
+        admin_docs = users_ref.where(filter=FieldFilter("role", "==", "admin")).get()
+        
+        notifications_ref = db.collection(Collections.NOTIFICATIONS)
+        for admin_doc in admin_docs:
+            admin_data = admin_doc.to_dict()
+            notifications_ref.add({
+                "user_id": admin_doc.id,
+                "type": "pending_approval",
+                "title": "New Resolution Pending Approval",
+                "message": f"Both parties have agreed to a resolution for '{data.get('title')}'. Please review and approve.",
+                "link": f"/admin/approvals/{dispute_id}",
+                "is_read": False,
+                "created_at": datetime.utcnow()
+            })
+        
+        return {"status": "success", "message": "Agreement recorded. Pending admin approval."}
         
     return {"status": "success", "message": "Agreement recorded"}
 

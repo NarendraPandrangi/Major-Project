@@ -29,6 +29,7 @@ class User(BaseModel):
     full_name: Optional[str] = None
     profile_picture: Optional[str] = None
     auth_provider: str = "local"
+    role: str = "user"
 
 class UserResponse(BaseModel):
     user: User
@@ -98,7 +99,8 @@ async def register(user_data: UserCreate):
         email=user_data.email,
         username=user_data.username,
         full_name=user_data.full_name,
-        auth_provider="local"
+        auth_provider="local",
+        role="user"
     )
     
     return UserResponse(
@@ -149,7 +151,8 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         username=user_data["username"],
         full_name=user_data.get("full_name"),
         profile_picture=user_data.get("profile_picture"),
-        auth_provider=user_data.get("auth_provider", "local")
+        auth_provider=user_data.get("auth_provider", "local"),
+        role=user_data.get("role", "user")
     )
     
     return UserResponse(
@@ -210,7 +213,8 @@ async def login_with_email(user_data: UserLogin):
         username=user_dict["username"],
         full_name=user_dict.get("full_name"),
         profile_picture=user_dict.get("profile_picture"),
-        auth_provider=user_dict.get("auth_provider", "local")
+        auth_provider=user_dict.get("auth_provider", "local"),
+        role=user_dict.get("role", "user")
     )
     
     return UserResponse(
@@ -295,7 +299,8 @@ async def google_auth(google_data: GoogleAuthRequest):
         username=user_data["username"],
         full_name=user_data.get("full_name"),
         profile_picture=user_data.get("profile_picture"),
-        auth_provider=user_data.get("auth_provider", "google")
+        auth_provider=user_data.get("auth_provider", "google"),
+        role=user_data.get("role", "user")
     )
     
     return UserResponse(

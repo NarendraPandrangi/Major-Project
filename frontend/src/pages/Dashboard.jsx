@@ -23,9 +23,14 @@ const Dashboard = () => {
     const [showNotifications, setShowNotifications] = useState(false);
 
     useEffect(() => {
+        if (user?.role === 'admin') {
+            navigate('/admin');
+            return;
+        }
         fetchDashboardStats();
         fetchNotifications();
-    }, []);
+    }, [user, navigate]);
+
 
     const fetchDashboardStats = async () => {
         try {
@@ -257,8 +262,15 @@ const Dashboard = () => {
                                 <Clock size={32} />
                                 <span>Cases Against Me</span>
                             </button>
+                            {user?.role === 'admin' && (
+                                <button className="action-card admin-card" onClick={() => navigate('/admin')}>
+                                    <User size={32} />
+                                    <span>Admin Panel</span>
+                                </button>
+                            )}
                         </div>
                     </div>
+
 
                     {/* Recent Disputes */}
                     {stats?.recent_disputes && stats.recent_disputes.length > 0 && (

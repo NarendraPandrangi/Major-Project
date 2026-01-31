@@ -157,11 +157,50 @@ async def get_suggestions(
             suggestions_list = parsed_content.get("suggestions") or []
             print("DEBUG: JSON parsed successfully", file=sys.stderr)
         else:
-            # Fallback - treat whole content as analysis
-            analysis_text = content
+            # Fallback - Parse numbered list from text
+            print("DEBUG: JSON parsing failed, attempting to parse numbered list", file=sys.stderr)
+            
+            # Try to extract suggestions from numbered list
+            lines = content.split('\n')
             suggestions_list = []
-            analysis_text = content
-            suggestions_list = []
+            current_suggestion = None
+            analysis_lines = []
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                
+                # Check if line starts with a number (1., 2., 3. or 1) 2) 3))
+                number_match = re.match(r'^(\d+)[\.\)]\s*(.+)', line)
+                
+                if number_match:
+                    # Save previous suggestion
+                    if current_suggestion:
+                        suggestions_list.append(current_suggestion)
+                    
+                    # Start new suggestion
+                    suggestion_id = number_match.group(1)
+                    suggestion_text = number_match.group(2)
+                    current_suggestion = {
+                        "id": suggestion_id,
+                        "text": suggestion_text
+                    }
+                elif current_suggestion and line:
+                    # Continue current suggestion
+                    current_suggestion["text"] += " " + line
+                elif not current_suggestion:
+                    # Analysis text
+                    analysis_lines.append(line)
+            
+            # Add last suggestion
+            if current_suggestion:
+                suggestions_list.append(current_suggestion)
+            
+            # Set analysis
+            analysis_text = '\n'.join(analysis_lines) if analysis_lines else "AI analysis completed."
+            
+            print(f"DEBUG: Parsed {len(suggestions_list)} suggestions from text", file=sys.stderr)
         
         # Save analysis to dispute
         update_data = {

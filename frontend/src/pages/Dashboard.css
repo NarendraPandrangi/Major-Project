@@ -322,6 +322,20 @@
     font-weight: 600;
 }
 
+.action-card.admin-card {
+    border-color: var(--accent-300);
+}
+
+.action-card.admin-card:hover {
+    background: linear-gradient(135deg, var(--accent-50), var(--accent-100));
+    border-color: var(--accent-500);
+}
+
+.action-card.admin-card svg {
+    color: var(--accent-600);
+}
+
+
 /* Recent Disputes */
 .recent-disputes h3 {
     font-size: var(--font-size-2xl);

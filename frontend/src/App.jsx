@@ -7,8 +7,10 @@ import Dashboard from './pages/Dashboard';
 import Home from './pages/Home';
 import DisputeForm from './pages/DisputeForm';
 import DisputeDetails from './pages/DisputeDetails';
+import AdminPanel from './pages/AdminPanel';
 import './emailConfigValidator'; // Validate email config on startup
 import './index.css';
+
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -89,14 +91,23 @@ function App() {
                         }
                     />
                     <Route
-                        path="/dispute/:id"
+                        path="/dispute/:id/*"
                         element={
                             <ProtectedRoute>
                                 <DisputeDetails />
                             </ProtectedRoute>
                         }
                     />
+                    <Route
+                        path="/admin"
+                        element={
+                            <ProtectedRoute>
+                                <AdminPanel />
+                            </ProtectedRoute>
+                        }
+                    />
                     <Route path="*" element={<Navigate to="/" />} />
+
                 </Routes>
             </AuthProvider>
         </Router>
