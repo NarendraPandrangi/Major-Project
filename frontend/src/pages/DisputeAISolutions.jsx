@@ -132,24 +132,37 @@ const DisputeAISolutions = ({ dispute, isPlaintiff, isDefendant, onRefresh }) =>
                                         const suggestionId = suggestion.id || idx + 1;
                                         const suggestionText = suggestion.text || suggestion;
 
+                                        // Determine if this user has already agreed
+                                        const userAgreed = isPlaintiff ? dispute.plaintiff_agreed : (isDefendant ? dispute.defendant_agreed : false);
+
+                                        // Check if this specific option is the one agreed to
+                                        // Note: This relies on exact text match. If resolution_text is modified, this might not match.
+                                        const isSelected = dispute.resolution_text === suggestionText;
+
                                         return (
                                             <div key={idx} style={{
                                                 padding: '1rem',
-                                                border: '1px solid var(--border-color)',
+                                                border: isSelected ? '2px solid var(--success-500)' : '1px solid var(--border-color)',
                                                 borderRadius: '8px',
-                                                background: 'var(--surface)',
+                                                background: isSelected ? 'var(--success-50)' : 'var(--surface)',
                                                 display: 'flex',
                                                 flexDirection: 'column',
-                                                gap: '1rem'
+                                                gap: '1rem',
+                                                opacity: (userAgreed && !isSelected) ? 0.6 : 1
                                             }}>
                                                 <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Option {suggestionId}</div>
                                                 <div style={{ color: 'var(--text-secondary)' }}>{suggestionText}</div>
                                                 <button
-                                                    className="btn-primary-sm"
+                                                    className={`btn-${isSelected ? 'success' : 'primary'}-sm`}
                                                     style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                                                     onClick={() => handleAgree(suggestionText)}
+                                                    disabled={userAgreed}
                                                 >
-                                                    <CheckCircle size={16} /> Accept This Option
+                                                    {isSelected ? (
+                                                        <><CheckCircle size={16} /> Selected</>
+                                                    ) : (
+                                                        <><CheckCircle size={16} /> Accept This Option</>
+                                                    )}
                                                 </button>
                                             </div>
                                         );
@@ -204,8 +217,6 @@ const DisputeAISolutions = ({ dispute, isPlaintiff, isDefendant, onRefresh }) =>
                     )}
                 </div>
             )}
-
-
 
             {/* Official Agreement Document */}
             {dispute.status === 'Resolved' && (

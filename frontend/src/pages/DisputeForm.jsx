@@ -87,7 +87,9 @@ const DisputeForm = () => {
                 to_name: formData.defendant_email.split('@')[0],
                 dispute_id: disputeId,
                 dispute_title: formData.title,
-                category: formData.category
+                category: formData.category,
+                message: "A new dispute has been filed against you. Please log in to review the details and respond.",
+                action: "View Dispute Details"
             };
 
             // Send notification to defendant
@@ -105,7 +107,9 @@ const DisputeForm = () => {
                 to_name: user.full_name || user.email.split('@')[0],
                 dispute_id: disputeId,
                 dispute_title: formData.title,
-                category: formData.category
+                category: formData.category,
+                message: "Your dispute has been successfully filed. We have notified the defendant.",
+                action: "View Your Filing"
             };
 
             sendDisputeConfirmationEmail(confirmationParams)

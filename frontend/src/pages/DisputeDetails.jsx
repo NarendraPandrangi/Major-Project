@@ -75,7 +75,9 @@ const DisputeDetails = () => {
                     to_name: dispute.creator_email.split('@')[0],
                     dispute_id: dispute.id,
                     dispute_title: dispute.title,
-                    category: dispute.category
+                    category: dispute.category,
+                    message: "The defendant has accepted your dispute. You can now proceed to negotiate a resolution.",
+                    action: "Start Negotiation"
                 };
 
                 sendDisputeAcceptedEmail(emailParams)
@@ -109,7 +111,9 @@ const DisputeDetails = () => {
                     to_name: dispute.creator_email.split('@')[0],
                     dispute_id: dispute.id,
                     dispute_title: dispute.title,
-                    category: dispute.category
+                    category: dispute.category,
+                    message: "The defendant has rejected your dispute. Please review the case status.",
+                    action: "View Dispute Details"
                 };
 
                 sendDisputeRejectedEmail(emailParams)

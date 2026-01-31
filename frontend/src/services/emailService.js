@@ -113,10 +113,13 @@ export const sendWelcomeEmail = async ({ to_email, to_name, user_id }) => {
  * @param {string} params.category - Dispute category
  * @returns {Promise} EmailJS send promise
  */
-export const sendDisputeFiledEmail = async ({ to_email, to_name, dispute_id, dispute_title, category }) => {
+export const sendDisputeFiledEmail = async ({ to_email, to_name, dispute_id, dispute_title, category, message, action }) => {
     try {
         // Initialize with dispute service public key
         initializeEmailJS(DISPUTE_CONFIG.publicKey);
+
+        const msg = message || "A new dispute has been filed against you. Please review the details and respond.";
+        const act = action || "View Dispute Details";
 
         const templateParams = {
             to_email,
@@ -125,13 +128,23 @@ export const sendDisputeFiledEmail = async ({ to_email, to_name, dispute_id, dis
             dispute_title,
             category,
             filed_date: new Date().toLocaleDateString(),
+
+            // Send multiple variations of message/action to match potential template variables
+            message: msg,
+            message_body: msg,
+            body: msg,
+            content: msg,
+
+            action: act,
+            action_text: act,
+            action_label: act,
+            btn_text: act,
+
+            title: "New Dispute Filed",
+            intro: "You have a new dispute case update."
         };
 
-        console.log('Sending dispute filed email with config:', {
-            serviceId: DISPUTE_CONFIG.serviceId,
-            templateId: DISPUTE_CONFIG.templates.disputeFiled,
-            recipient: to_email
-        });
+        console.log('Sending dispute filed email:', { recipient: to_email, message: msg });
 
         const response = await emailjs.send(
             DISPUTE_CONFIG.serviceId,
@@ -139,7 +152,7 @@ export const sendDisputeFiledEmail = async ({ to_email, to_name, dispute_id, dis
             templateParams
         );
 
-        console.log('Dispute filed email sent successfully:', response);
+        console.log('Dispute filed email sent successfully');
         return { success: true, response };
     } catch (error) {
         console.error('Failed to send dispute filed email:', error);
@@ -156,13 +169,32 @@ export const sendDisputeConfirmationEmail = async (params) => {
     try {
         initializeEmailJS(DISPUTE_CONFIG.publicKey);
 
+        const msg = params.message || "Your dispute has been successfully filed. We have notified the defendant.";
+        const act = params.action || "View Dispute Details";
+
+        const templateParams = {
+            ...params,
+            message: msg,
+            message_body: msg,
+            body: msg,
+            content: msg,
+
+            action: act,
+            action_text: act,
+            action_label: act,
+            btn_text: act,
+
+            title: "Dispute Filed Successfully",
+            intro: "We have received your dispute filing."
+        };
+
         const response = await emailjs.send(
             DISPUTE_CONFIG.serviceId,
             DISPUTE_CONFIG.templates.confirmation,
-            params
+            templateParams
         );
 
-        console.log('Dispute confirmation email sent successfully:', response);
+        console.log('Dispute confirmation email sent successfully');
         return { success: true, response };
     } catch (error) {
         console.error('Failed to send dispute confirmation email:', error);
@@ -179,13 +211,32 @@ export const sendDisputeAcceptedEmail = async (params) => {
     try {
         initializeEmailJS(DISPUTE_CONFIG.publicKey);
 
+        const msg = params.message || "The defendant has accepted your dispute claim. You can now proceed to the resolution phase.";
+        const act = params.action || "Start Negotiation";
+
+        const templateParams = {
+            ...params,
+            message: msg,
+            message_body: msg,
+            body: msg,
+            content: msg,
+
+            action: act,
+            action_text: act,
+            action_label: act,
+            btn_text: act,
+
+            title: "Dispute Accepted",
+            intro: "Good news! The defendant has accepted the dispute."
+        };
+
         const response = await emailjs.send(
             DISPUTE_CONFIG.serviceId,
             DISPUTE_CONFIG.templates.accepted,
-            params
+            templateParams
         );
 
-        console.log('Dispute accepted email sent successfully:', response);
+        console.log('Dispute accepted email sent successfully');
         return { success: true, response };
     } catch (error) {
         console.error('Failed to send dispute accepted email:', error);
@@ -202,13 +253,32 @@ export const sendDisputeRejectedEmail = async (params) => {
     try {
         initializeEmailJS(DISPUTE_CONFIG.publicKey);
 
+        const msg = params.message || "The defendant has rejected your dispute claim.";
+        const act = params.action || "View Details";
+
+        const templateParams = {
+            ...params,
+            message: msg,
+            message_body: msg,
+            body: msg,
+            content: msg,
+
+            action: act,
+            action_text: act,
+            action_label: act,
+            btn_text: act,
+
+            title: "Dispute Rejected",
+            intro: "The defendant has rejected the dispute claim."
+        };
+
         const response = await emailjs.send(
             DISPUTE_CONFIG.serviceId,
             DISPUTE_CONFIG.templates.rejected,
-            params
+            templateParams
         );
 
-        console.log('Dispute rejected email sent successfully:', response);
+        console.log('Dispute rejected email sent successfully');
         return { success: true, response };
     } catch (error) {
         console.error('Failed to send dispute rejected email:', error);

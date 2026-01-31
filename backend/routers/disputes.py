@@ -83,6 +83,67 @@ async def agree_to_resolution(
         
     doc_ref.update(update_data)
     
+    # Notify the OTHER party about the proposal
+    notifications_ref = db.collection(Collections.NOTIFICATIONS)
+    users_ref = db.collection(Collections.USERS)
+    
+    if is_plaintiff and not d_agreed:
+        # Plaintiff Agreed -> Notify Defendant
+        def_email = data.get("defendant_email")
+        if def_email:
+            # 1. Send Email
+            email_service.send_plaintiff_selected_option_notification(
+                to_email=def_email,
+                dispute_title=data.get("title"),
+                plaintiff_email=current_user["email"],
+                selected_option=agreement.resolution_text if agreement else "A resolution option",
+                dispute_id=dispute_id
+            )
+            
+            # 2. In-App Notification (Need Defendant ID)
+            def_docs = users_ref.where(filter=FieldFilter("email", "==", def_email)).limit(1).get()
+            def_list = list(def_docs)
+            if def_list:
+                def_id = def_list[0].id
+                notifications_ref.add({
+                    "user_id": def_id,
+                    "type": "proposal_received",
+                    "title": "New Resolution Proposal",
+                    "message": f"The plaintiff has proposed a resolution for '{data.get('title')}'. Please review.",
+                    "link": f"/dispute/{dispute_id}",
+                    "is_read": False,
+                    "created_at": datetime.utcnow()
+                })
+
+    elif is_defendant and not p_agreed:
+        # Defendant Agreed -> Notify Plaintiff
+        plaintiff_id = data.get("user_id")
+        if plaintiff_id:
+             # 1. In-App Notification
+            notifications_ref.add({
+                "user_id": plaintiff_id,
+                "type": "proposal_received",
+                "title": "New Resolution Proposal",
+                "message": f"The defendant has proposed/accepted a resolution for '{data.get('title')}'. Please review.",
+                "link": f"/dispute/{dispute_id}",
+                "is_read": False,
+                "created_at": datetime.utcnow()
+            })
+            
+            # 2. Send Email (Get Plaintiff Email)
+            # We have current_user (defendant), need plaintiff email. 
+            # It's in data.get("creator_email") usually, or fetch user. 
+            # In create_dispute we stored "creator_email".
+            p_email = data.get("creator_email")
+            if p_email:
+                 # Re-using the same method or a generic one? 
+                 # The user request specifically mentioned "if plantiff selected... email sent to defendant".
+                 # But good UX implies symmetry. I'll stick to the requested direction primarily but keeping symmetry is better.
+                 # Using a generic notification or similar method.
+                 # For now, relying on the specific request: "if plantiff selected ... email ... to defendent"
+                 pass
+
+
     # Check if BOTH have agreed now
     # Need to refetch or simulate
     p_agreed = update_data.get("plaintiff_agreed", data.get("plaintiff_agreed", False))

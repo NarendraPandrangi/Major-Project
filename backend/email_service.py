@@ -354,6 +354,48 @@ class EmailService:
         self.send_email(defendant_email, subject, html_content)
         return True
 
+    def send_plaintiff_selected_option_notification(self, to_email: str, dispute_title: str, plaintiff_email: str, selected_option: str, dispute_id: str):
+        """Send notification when plaintiff selects an AI resolution option"""
+        subject = f"Plaintiff Proposed a Resolution - {dispute_title}"
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #3b82f6, #6366f1); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+                .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
+                .button {{ display: inline-block; padding: 12px 24px; background: #3b82f6; color: white; text-decoration: none; border-radius: 6px; margin-top: 20px; }}
+                .footer {{ text-align: center; margin-top: 20px; color: #6b7280; font-size: 14px; }}
+                .option-box {{ background: white; padding: 15px; margin: 15px 0; border-radius: 8px; border-left: 4px solid #3b82f6; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>⚖️ Resolution Proposed</h1>
+                </div>
+                <div class="content">
+                    <h2>Plaintiff Has Selected an Option</h2>
+                    <p>Hello,</p>
+                    <p>The plaintiff ({plaintiff_email}) has selected a resolution option for the dispute <strong>{dispute_title}</strong>.</p>
+                    <div class="option-box">
+                        <strong>Proposed Resolution:</strong><br>
+                        {selected_option}
+                    </div>
+                    <p>Please review this proposal. If you agree, you can accept it to resolve the dispute.</p>
+                    <a href="http://localhost:5173/dispute/{dispute_id}" class="button">View & Respond</a>
+                </div>
+                <div class="footer">
+                    <p>This is an automated message from {self.app_name}. Please do not reply to this email.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        return self.send_email(to_email, subject, html_content)
+
 # Singleton instance
 email_service = EmailService()
 
