@@ -16,6 +16,7 @@ class DisputeCreate(BaseModel):
     description: str
     defendant_email: str
     evidence_file: Optional[str] = None
+    evidence_text: Optional[str] = None # OCR extracted text
 
 class Dispute(DisputeCreate):
     id: str
@@ -26,6 +27,8 @@ class Dispute(DisputeCreate):
     updated_at: str
     plaintiff_agreed: Optional[bool] = False
     defendant_agreed: Optional[bool] = False
+    plaintiff_escalated: Optional[bool] = False
+    defendant_escalated: Optional[bool] = False
     resolution_text: Optional[str] = None
     ai_analysis: Optional[str] = None
     ai_suggestions: Optional[Union[List[dict], str]] = None
@@ -78,8 +81,10 @@ async def agree_to_resolution(
     
     if is_plaintiff:
         update_data["plaintiff_agreed"] = True
+        update_data["plaintiff_escalated"] = False
     elif is_defendant:
         update_data["defendant_agreed"] = True
+        update_data["defendant_escalated"] = False
         
     doc_ref.update(update_data)
     
@@ -87,7 +92,7 @@ async def agree_to_resolution(
     notifications_ref = db.collection(Collections.NOTIFICATIONS)
     users_ref = db.collection(Collections.USERS)
     
-    if is_plaintiff and not d_agreed:
+    if is_plaintiff and not data.get("defendant_agreed", False):
         # Plaintiff Agreed -> Notify Defendant
         def_email = data.get("defendant_email")
         if def_email:
@@ -115,7 +120,7 @@ async def agree_to_resolution(
                     "created_at": datetime.utcnow()
                 })
 
-    elif is_defendant and not p_agreed:
+    elif is_defendant and not data.get("plaintiff_agreed", False):
         # Defendant Agreed -> Notify Plaintiff
         plaintiff_id = data.get("user_id")
         if plaintiff_id:
@@ -131,16 +136,11 @@ async def agree_to_resolution(
             })
             
             # 2. Send Email (Get Plaintiff Email)
-            # We have current_user (defendant), need plaintiff email. 
-            # It's in data.get("creator_email") usually, or fetch user. 
-            # In create_dispute we stored "creator_email".
             p_email = data.get("creator_email")
             if p_email:
                  # Re-using the same method or a generic one? 
                  # The user request specifically mentioned "if plantiff selected... email sent to defendant".
                  # But good UX implies symmetry. I'll stick to the requested direction primarily but keeping symmetry is better.
-                 # Using a generic notification or similar method.
-                 # For now, relying on the specific request: "if plantiff selected ... email ... to defendent"
                  pass
 
 
@@ -153,6 +153,7 @@ async def agree_to_resolution(
     # For now, let's assume they are coordinating. But ideally:
     # if agreement.resolution_text != data.get("resolution_text"): disable other party agreement
     # Implementing simplistic overwrite for now based on user request "reflects".
+    
     
     if p_agreed and d_agreed:
         # Both agreed -> Send to Admin for Approval
@@ -182,6 +183,116 @@ async def agree_to_resolution(
         return {"status": "success", "message": "Agreement recorded. Pending admin approval."}
         
     return {"status": "success", "message": "Agreement recorded"}
+
+class EscalateRequest(BaseModel):
+    reason: Optional[str] = None
+
+@router.post("/{dispute_id}/escalate")
+async def escalate_dispute(
+    dispute_id: str, 
+    request: EscalateRequest = Body(default=None),
+    current_user: dict = Depends(auth.get_current_user_firestore)
+):
+    """
+    Party requests to escalate the dispute (rejecting available options).
+    If both parties escalate, status becomes 'Escalated'.
+    """
+    db = get_firestore_db()
+    disputes_ref = db.collection(Collections.DISPUTES)
+    
+    doc_ref = disputes_ref.document(dispute_id)
+    doc = doc_ref.get()
+    
+    if not doc or not doc.exists():
+        raise HTTPException(status_code=404, detail="Dispute not found")
+        
+    data = doc.to_dict()
+    
+    # Determine role
+    is_plaintiff = data.get("user_id") == current_user["id"]
+    is_defendant = data.get("defendant_email") == current_user["email"]
+    
+    if not is_plaintiff and not is_defendant:
+        raise HTTPException(status_code=403, detail="Not a party to this dispute")
+        
+    update_data = {
+        "updated_at": datetime.utcnow()
+    }
+    
+    if is_plaintiff:
+        update_data["plaintiff_escalated"] = True
+    elif is_defendant:
+        update_data["defendant_escalated"] = True
+        
+    doc_ref.update(update_data)
+    
+    # Check if both escalated
+    p_esc = update_data.get("plaintiff_escalated", data.get("plaintiff_escalated", False))
+    d_esc = update_data.get("defendant_escalated", data.get("defendant_escalated", False))
+    
+    notifications_ref = db.collection(Collections.NOTIFICATIONS)
+    
+    if p_esc and d_esc:
+        # Both escalated -> Change Status to Escalated
+        final_update = {
+            "status": "Escalated",
+            "escalated_at": datetime.utcnow().isoformat()
+        }
+        doc_ref.update(final_update)
+        
+        # Notify Admin
+        users_ref = db.collection(Collections.USERS)
+        admin_docs = users_ref.where(filter=FieldFilter("role", "==", "admin")).get()
+        
+        for admin_doc in admin_docs:
+            notifications_ref.add({
+                "user_id": admin_doc.id,
+                "type": "dispute_escalated",
+                "title": "Dispute Escalated",
+                "message": f"Both parties have rejected options for '{data.get('title')}'. Case escalated for manual review.",
+                "link": f"/admin/disputes/{dispute_id}",
+                "is_read": False,
+                "created_at": datetime.utcnow()
+            })
+            
+        return {"status": "success", "message": "Dispute escalated to admin review."}
+        
+    else:
+        # Notify other party
+        users_ref = db.collection(Collections.USERS)
+        
+        if is_plaintiff:
+            # Notify Defendant
+            def_email = data.get("defendant_email")
+            if def_email:
+                def_docs = users_ref.where(filter=FieldFilter("email", "==", def_email)).limit(1).get()
+                def_list = list(def_docs)
+                if def_list:
+                    def_id = def_list[0].id
+                    notifications_ref.add({
+                        "user_id": def_id,
+                        "type": "escalation_request",
+                        "title": "Escalation Request",
+                        "message": f"The plaintiff has rejected the generated options and requested escalation for '{data.get('title')}'.",
+                        "link": f"/dispute/{dispute_id}",
+                        "is_read": False,
+                        "created_at": datetime.utcnow()
+                    })
+        elif is_defendant:
+             # Notify Plaintiff
+            plaintiff_id = data.get("user_id")
+            if plaintiff_id:
+                notifications_ref.add({
+                    "user_id": plaintiff_id,
+                    "type": "escalation_request",
+                    "title": "Escalation Request",
+                    "message": f"The defendant has rejected the generated options and requested escalation for '{data.get('title')}'.",
+                    "link": f"/dispute/{dispute_id}",
+                    "is_read": False,
+                    "created_at": datetime.utcnow()
+                })
+        
+        return {"status": "success", "message": "Escalation request recorded. Waiting for other party."}
 
 # ... (Existing message endpoints)
 

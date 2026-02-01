@@ -12,6 +12,10 @@ class ApprovalDecision(BaseModel):
     decision: str  # "approve" or "reject"
     admin_notes: Optional[str] = None
 
+class AdminVerdict(BaseModel):
+    resolution_text: str
+    admin_notes: Optional[str] = None
+
 @router.get("/pending-approvals")
 async def get_pending_approvals(current_user: dict = Depends(auth.get_current_user_firestore)):
     """Get all disputes pending admin approval"""
@@ -177,6 +181,106 @@ async def approve_resolution(
     
     else:
         raise HTTPException(status_code=400, detail="Invalid decision. Must be 'approve' or 'reject'")
+
+@router.get("/escalated-disputes")
+async def get_escalated_disputes(current_user: dict = Depends(auth.get_current_user_firestore)):
+    """Get all disputes with status 'Escalated' request manual review"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    db = get_firestore_db()
+    disputes_ref = db.collection(Collections.DISPUTES)
+    
+    docs = disputes_ref.where(filter=FieldFilter("status", "==", "Escalated")).get()
+    
+    results = []
+    for doc in docs:
+        data = doc.to_dict()
+        data["id"] = doc.id
+        results.append(data)
+    
+    results.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
+    return results
+
+@router.post("/{dispute_id}/resolve-escalation")
+async def resolve_escalation_case(
+    dispute_id: str,
+    verdict: AdminVerdict,
+    current_user: dict = Depends(auth.get_current_user_firestore)
+):
+    """Admin provides a final binding verdict for an escalated dispute"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    db = get_firestore_db()
+    disputes_ref = db.collection(Collections.DISPUTES)
+    users_ref = db.collection(Collections.USERS)
+    
+    doc_ref = disputes_ref.document(dispute_id)
+    doc = doc_ref.get()
+    
+    if not doc or not doc.exists():
+        raise HTTPException(status_code=404, detail="Dispute not found")
+    
+    data = doc.to_dict()
+    
+    if data.get("status") != "Escalated":
+        raise HTTPException(status_code=400, detail="Dispute is not currently escalated")
+        
+    current_time = datetime.utcnow()
+    
+    # Update dispute with final verdict
+    update_data = {
+        "status": "Resolved",
+        "resolution_text": verdict.resolution_text,
+        "resolved_at": current_time.isoformat(),
+        "admin_resolved": True,
+        "admin_id": current_user["id"],
+        "admin_notes": verdict.admin_notes or "Resolved via Admin Escalation Verdict",
+        "updated_at": current_time
+    }
+    
+    doc_ref.update(update_data)
+    
+    # Notify Parties
+    notifications_ref = db.collection(Collections.NOTIFICATIONS)
+    
+    msg = f"Admin has issued a final verdict for '{data.get('title')}': {verdict.resolution_text}"
+    
+    # Plaintiff Notification
+    notifications_ref.add({
+        "user_id": data.get("user_id"),
+        "type": "admin_verdict",
+        "title": "Final Admin Verdict",
+        "message": msg,
+        "link": f"/dispute/{dispute_id}",
+        "is_read": False,
+        "created_at": current_time
+    })
+    
+    # Defendant Notification
+    def_docs = users_ref.where(filter=FieldFilter("email", "==", data.get("defendant_email"))).limit(1).get()
+    for d in def_docs:
+        notifications_ref.add({
+            "user_id": d.id,
+            "type": "admin_verdict",
+            "title": "Final Admin Verdict",
+            "message": msg,
+            "link": f"/dispute/{dispute_id}",
+            "is_read": False,
+            "created_at": current_time
+        })
+        
+    # Email notifications (reuse success email or Create new specific one? Reusing approved for now)
+    email_service.send_resolution_approved_notification(
+        plaintiff_email=data.get("creator_email"),
+        defendant_email=data.get("defendant_email"),
+        dispute_title=data.get("title"),
+        resolution_text=verdict.resolution_text,
+        dispute_id=dispute_id
+    )
+    
+    return {"status": "success", "message": "Verdict issued successfully"}
 
 @router.get("/stats")
 async def get_admin_stats(current_user: dict = Depends(auth.get_current_user_firestore)):

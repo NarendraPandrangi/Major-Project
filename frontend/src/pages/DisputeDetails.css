@@ -51,9 +51,15 @@
     color: var(--primary-700);
 }
 
+
 .status-Resolved {
     background: var(--success-100);
     color: var(--success-700);
+}
+
+.status-Escalated {
+    background: var(--error-100);
+    color: var(--error-700);
 }
 
 /* Grid Layout */

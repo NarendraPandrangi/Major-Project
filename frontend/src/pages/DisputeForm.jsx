@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { disputeAPI } from '../api/client';
-import { FileText, User, AlertCircle, CheckCircle, Loader } from 'lucide-react';
+import { FileText, User, AlertCircle, CheckCircle, Loader, Eye } from 'lucide-react';
 import { sendDisputeFiledEmail, sendDisputeConfirmationEmail } from '../services/emailService';
+import Tesseract from 'tesseract.js';
 import './DisputeForm.css';
 
 const DisputeForm = () => {
@@ -15,7 +16,8 @@ const DisputeForm = () => {
         category: '',
         description: '',
         defendant_email: '',
-        evidence_file: null // Base64 string
+        evidence_file: null, // Base64 string
+        evidence_text: ''  // Extracted OCR text
     });
 
     const [loading, setLoading] = useState(false);
@@ -43,7 +45,9 @@ const DisputeForm = () => {
         setError('');
     };
 
-    const handleFileChange = (e) => {
+    const [isProcessingOCR, setIsProcessingOCR] = useState(false);
+
+    const handleFileChange = async (e) => {
         const file = e.target.files[0];
         if (file) {
             if (file.size > 10 * 1024 * 1024) { // 10MB limit
@@ -51,6 +55,7 @@ const DisputeForm = () => {
                 return;
             }
 
+            // Convert to Base64
             const reader = new FileReader();
             reader.onloadend = () => {
                 setFormData(prev => ({
@@ -59,6 +64,32 @@ const DisputeForm = () => {
                 }));
             };
             reader.readAsDataURL(file);
+
+            // Perform OCR
+            setIsProcessingOCR(true);
+            try {
+                const result = await Tesseract.recognize(
+                    file,
+                    'eng',
+                    {
+                        logger: m => console.log(m)
+                    }
+                );
+
+                const extractedText = result.data.text;
+                console.log("OCR Result:", extractedText);
+
+                setFormData(prev => ({
+                    ...prev,
+                    evidence_text: extractedText
+                }));
+
+            } catch (err) {
+                console.error("OCR Failed:", err);
+                // We don't block upload if OCR fails, just log it
+            } finally {
+                setIsProcessingOCR(false);
+            }
         }
     };
 
@@ -263,11 +294,18 @@ const DisputeForm = () => {
                                 {formData.evidence_file ? (
                                     <div className="file-selected">
                                         <CheckCircle size={20} color="var(--success)" />
-                                        <span>File attached</span>
+                                        <div style={{ flex: 1 }}>
+                                            <span>File attached</span>
+                                            {isProcessingOCR && (
+                                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
+                                                    <Loader size={12} className="spinner" /> Analyzing image text...
+                                                </div>
+                                            )}
+                                        </div>
                                         <button
                                             type="button"
                                             className="remove-file-btn"
-                                            onClick={() => setFormData(prev => ({ ...prev, evidence_file: null }))}
+                                            onClick={() => setFormData(prev => ({ ...prev, evidence_file: null, evidence_text: '' }))}
                                         >
                                             Remove
                                         </button>
@@ -279,6 +317,18 @@ const DisputeForm = () => {
                                 )}
                             </div>
                         </div>
+
+                        {/* OCR Text Preview */}
+                        {formData.evidence_text && (
+                            <div style={{ marginTop: '1rem', padding: '1rem', background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                                <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <Eye size={14} /> Extracted Text from Image
+                                </h4>
+                                <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', maxHeight: '150px', overflowY: 'auto' }}>
+                                    {formData.evidence_text}
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Submit Buttons */}

@@ -14,10 +14,12 @@ const AdminPanel = () => {
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState(null);
     const [pendingApprovals, setPendingApprovals] = useState([]);
+    const [escalatedDisputes, setEscalatedDisputes] = useState([]);
     const [allDisputes, setAllDisputes] = useState([]);
     const [allUsers, setAllUsers] = useState([]);
     const [selectedDispute, setSelectedDispute] = useState(null);
     const [adminNotes, setAdminNotes] = useState('');
+    const [verdictText, setVerdictText] = useState('');
     const [processing, setProcessing] = useState(false);
 
     useEffect(() => {
@@ -33,15 +35,17 @@ const AdminPanel = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [statsRes, pendingRes, disputesRes, usersRes] = await Promise.all([
+            const [statsRes, pendingRes, escalatedRes, disputesRes, usersRes] = await Promise.all([
                 adminAPI.getStats(),
                 adminAPI.getPendingApprovals(),
+                adminAPI.getEscalatedDisputes(),
                 adminAPI.getAllDisputes(),
                 adminAPI.getAllUsers()
             ]);
 
             setStats(statsRes.data);
             setPendingApprovals(pendingRes.data);
+            setEscalatedDisputes(escalatedRes.data);
             setAllDisputes(disputesRes.data);
             setAllUsers(usersRes.data);
         } catch (err) {
@@ -88,6 +92,30 @@ const AdminPanel = () => {
         } catch (err) {
             console.error('Failed to reject resolution:', err);
             alert('Failed to reject resolution: ' + (err.response?.data?.detail || err.message));
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    const handleResolveEscalation = async (disputeId) => {
+        if (!verdictText.trim()) {
+            alert('Please provide a final verdict/resolution text');
+            return;
+        }
+
+        if (!window.confirm('This action is binding and will mark the dispute as Resolved. Proceed?')) return;
+
+        setProcessing(true);
+        try {
+            await adminAPI.resolveEscalation(disputeId, verdictText, adminNotes);
+            alert('Verdict issued successfully. Case resolved.');
+            setVerdictText('');
+            setAdminNotes('');
+            setSelectedDispute(null);
+            await fetchData();
+        } catch (err) {
+            console.error('Failed to resolve escalation:', err);
+            alert('Failed to issue verdict: ' + (err.response?.data?.detail || err.message));
         } finally {
             setProcessing(false);
         }
@@ -174,6 +202,13 @@ const AdminPanel = () => {
                         onClick={() => setActiveTab('pending')}
                     >
                         <Clock size={18} /> Pending Approvals ({pendingApprovals.length})
+                    </button>
+                    <button
+                        className={`tab-btn ${activeTab === 'escalated' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('escalated')}
+                        style={activeTab === 'escalated' ? { color: 'var(--error-600)', borderBottomColor: 'var(--error-600)' } : {}}
+                    >
+                        <Shield size={18} /> Escalations ({escalatedDisputes.length})
                     </button>
                     <button
                         className={`tab-btn ${activeTab === 'disputes' ? 'active' : ''}`}
@@ -294,7 +329,121 @@ const AdminPanel = () => {
                         </div>
                     )}
 
+                    {/* Escalated Tab */}
+                    {activeTab === 'escalated' && (
+                        <div className="escalated-disputes">
+                            {escalatedDisputes.length === 0 ? (
+                                <div className="empty-state">
+                                    <CheckCircle size={48} style={{ color: 'var(--success-500)' }} />
+                                    <h3>No Escalated Disputes</h3>
+                                    <p>No cases currently require manual intervention</p>
+                                </div>
+                            ) : (
+                                <div className="approvals-list">
+                                    {escalatedDisputes.map((dispute) => (
+                                        <div key={dispute.id} className="approval-card" style={{ borderLeft: '4px solid var(--error-500)' }}>
+                                            <div className="approval-header">
+                                                <div>
+                                                    <h3>{dispute.title}</h3>
+                                                    <span className="dispute-id">Case ID: {dispute.id}</span>
+                                                </div>
+                                                <span className="status-badge status-Escalated">
+                                                    Escalated
+                                                </span>
+                                            </div>
+
+                                            <div className="approval-details">
+                                                <div className="alert-box" style={{ background: 'var(--error-50)', padding: '1rem', border: '1px solid var(--error-200)', borderRadius: '6px', marginBottom: '1rem', color: 'var(--error-800)', display: 'flex', gap: '0.5rem' }}>
+                                                    <AlertTriangle size={20} />
+                                                    <div>
+                                                        <strong>Action Required:</strong> Both parties have rejected automated options. Please review the case and issue a final verdict.
+                                                    </div>
+                                                </div>
+
+                                                <div className="detail-row">
+                                                    <span className="label">Category:</span>
+                                                    <span className="value">{dispute.category}</span>
+                                                </div>
+                                                <div className="detail-row">
+                                                    <span className="label">Plaintiff:</span>
+                                                    <span className="value">{dispute.creator_email}</span>
+                                                </div>
+                                                <div className="detail-row">
+                                                    <span className="label">Defendant:</span>
+                                                    <span className="value">{dispute.defendant_email}</span>
+                                                </div>
+                                                <div className="detail-row">
+                                                    <span className="label">Description:</span>
+                                                    <p style={{ margin: '0.5rem 0', whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>{dispute.description}</p>
+                                                </div>
+                                            </div>
+
+                                            {selectedDispute === dispute.id ? (
+                                                <div className="admin-action-panel">
+                                                    <h4>Issue Final Verdict</h4>
+                                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>This text will become the official settlement agreement.</p>
+                                                    <textarea
+                                                        placeholder="Enter the final binding resolution terms..."
+                                                        value={verdictText}
+                                                        onChange={(e) => setVerdictText(e.target.value)}
+                                                        rows={6}
+                                                        className="admin-notes-input"
+                                                        style={{ marginBottom: '1rem' }}
+                                                    />
+                                                    <textarea
+                                                        placeholder="Internal admin notes (optional)..."
+                                                        value={adminNotes}
+                                                        onChange={(e) => setAdminNotes(e.target.value)}
+                                                        rows={2}
+                                                        className="admin-notes-input"
+                                                    />
+                                                    <div className="action-buttons">
+                                                        <button
+                                                            onClick={() => handleResolveEscalation(dispute.id)}
+                                                            disabled={processing || !verdictText.trim()}
+                                                            className="btn-approve"
+                                                        >
+                                                            <CheckCircle size={18} />
+                                                            {processing ? 'Processing...' : 'Issue Binding Verdict'}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedDispute(null);
+                                                                setVerdictText('');
+                                                                setAdminNotes('');
+                                                            }}
+                                                            className="btn-cancel"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: 'flex', gap: '1rem' }}>
+                                                    <button
+                                                        onClick={() => navigate(`/dispute/${dispute.id}`)}
+                                                        className="btn-secondary"
+                                                    >
+                                                        View Full History
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setSelectedDispute(dispute.id)}
+                                                        className="btn-review"
+                                                        style={{ background: 'var(--error-600)', color: 'white' }}
+                                                    >
+                                                        Resolve Dispute
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* All Disputes Tab */}
+
                     {activeTab === 'disputes' && (
                         <div className="all-disputes">
                             <div className="disputes-table">

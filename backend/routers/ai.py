@@ -67,6 +67,9 @@ async def get_suggestions(
         Description: {dispute_data.get('description')}
         Amount Disputed: {dispute_data.get('amount_disputed', 'N/A')}
         
+        EVIDENCE TEXT (OCR / Extracted from uploaded documents):
+        {dispute_data.get('evidence_text') or "No evidence text extracted."}
+        
         CHAT HISTORY (Between Plaintiff and Defendant):
         {chat_transcript if chat_transcript else "No chat history yet."}
         

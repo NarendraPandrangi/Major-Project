@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Scale, CheckCircle, Sparkles, Clock, FileText } from 'lucide-react';
+import { Scale, CheckCircle, Sparkles, Clock, FileText, ShieldAlert } from 'lucide-react';
 import { aiAPI, disputeAPI } from '../api/client';
 
 const DisputeAISolutions = ({ dispute, isPlaintiff, isDefendant, onRefresh }) => {
@@ -179,6 +179,46 @@ const DisputeAISolutions = ({ dispute, isPlaintiff, isDefendant, onRefresh }) =>
                         >
                             {analyzing ? 'Regenerating...' : 'Regenerate Analysis'}
                         </button>
+
+                        {/* Escalation Section */}
+                        <div style={{ marginTop: '2rem', paddingTop: '2rem', borderTop: '1px solid var(--border-color)' }}>
+                            <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Not satisfied with these options?</h4>
+                            <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+                                If you cannot agree on a resolution based on the AI suggestions, you can request to escalate this dispute to a human mediator.
+                            </p>
+
+                            {(isPlaintiff ? dispute.plaintiff_escalated : dispute.defendant_escalated) ? (
+                                <div style={{ padding: '1rem', background: '#fff0f0', border: '1px solid #ffcaca', color: '#d32f2f', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <ShieldAlert size={20} />
+                                    <span>You have requested escalation. Waiting for the other party's response.</span>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={async () => {
+                                        if (!window.confirm("Are you sure you want to reject all options and request escalation? If the other party also rejects, this will be sent to an admin.")) return;
+                                        try {
+                                            await disputeAPI.escalate(dispute.id);
+                                            if (onRefresh) await onRefresh();
+                                        } catch (err) {
+                                            console.error('Escalation Error:', err);
+                                            alert('Failed to request escalation.');
+                                        }
+                                    }}
+                                    className="btn-danger"
+                                    style={{
+                                        background: 'transparent',
+                                        color: '#d32f2f',
+                                        border: '1px solid #d32f2f',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem'
+                                    }}
+                                >
+                                    <ShieldAlert size={18} />
+                                    Reject Options & Request Escalation
+                                </button>
+                            )}
+                        </div>
                     </div>
                 ) : (
                     <button
@@ -202,110 +242,114 @@ const DisputeAISolutions = ({ dispute, isPlaintiff, isDefendant, onRefresh }) =>
             </div>
 
             {/* Pending Approval Banner */}
-            {dispute.status === 'PendingApproval' && (
-                <div className="details-card" style={{ border: '2px solid var(--warning-300)', background: 'var(--warning-50)' }}>
-                    <h3 className="card-title" style={{ color: 'var(--warning-800)' }}><Clock size={24} /> Pending Admin Approval</h3>
-                    <p style={{ margin: 0, color: 'var(--text-primary)' }}>
-                        Both parties have agreed to a resolution. This case is now pending approval from our admin team.
-                        You will be notified once the resolution has been reviewed.
-                    </p>
-                    {dispute.resolution_text && (
-                        <div style={{ marginTop: '1rem', padding: '1rem', background: 'white', borderRadius: '8px', border: '1px solid var(--warning-200)' }}>
-                            <strong>Agreed Resolution:</strong>
-                            <p style={{ marginTop: '0.5rem', marginBottom: 0 }}>{dispute.resolution_text}</p>
-                        </div>
-                    )}
-                </div>
-            )}
+            {
+                dispute.status === 'PendingApproval' && (
+                    <div className="details-card" style={{ border: '2px solid var(--warning-300)', background: 'var(--warning-50)' }}>
+                        <h3 className="card-title" style={{ color: 'var(--warning-800)' }}><Clock size={24} /> Pending Admin Approval</h3>
+                        <p style={{ margin: 0, color: 'var(--text-primary)' }}>
+                            Both parties have agreed to a resolution. This case is now pending approval from our admin team.
+                            You will be notified once the resolution has been reviewed.
+                        </p>
+                        {dispute.resolution_text && (
+                            <div style={{ marginTop: '1rem', padding: '1rem', background: 'white', borderRadius: '8px', border: '1px solid var(--warning-200)' }}>
+                                <strong>Agreed Resolution:</strong>
+                                <p style={{ marginTop: '0.5rem', marginBottom: 0 }}>{dispute.resolution_text}</p>
+                            </div>
+                        )}
+                    </div>
+                )
+            }
 
             {/* Official Agreement Document */}
-            {dispute.status === 'Resolved' && (
-                <div className="details-card" style={{ border: '2px solid var(--success-300)', background: 'var(--success-50)' }}>
-                    <h3 className="card-title" style={{ color: 'var(--success-800)' }}><FileText size={24} /> Official Settlement Agreement</h3>
-                    <div className="agreement-doc" style={{ padding: '2rem', background: 'white', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)' }}>
-                        <h2 style={{ textAlign: 'center', marginBottom: '2rem', textDecoration: 'underline' }}>SETTLEMENT AGREEMENT</h2>
+            {
+                dispute.status === 'Resolved' && (
+                    <div className="details-card" style={{ border: '2px solid var(--success-300)', background: 'var(--success-50)' }}>
+                        <h3 className="card-title" style={{ color: 'var(--success-800)' }}><FileText size={24} /> Official Settlement Agreement</h3>
+                        <div className="agreement-doc" style={{ padding: '2rem', background: 'white', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)' }}>
+                            <h2 style={{ textAlign: 'center', marginBottom: '2rem', textDecoration: 'underline' }}>SETTLEMENT AGREEMENT</h2>
 
-                        <div style={{ marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                            <div>
-                                <p><strong>Case ID:</strong> {dispute.id}</p>
-                                <p><strong>Date Resolved:</strong> {new Date(dispute.updated_at).toLocaleDateString()}</p>
-                            </div>
-                            <div style={{ textAlign: 'right' }}>
-                                <p><strong>Status:</strong> Resolved</p>
-                            </div>
-                        </div>
-
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            <h4 style={{ borderBottom: '1px solid #eee', paddingBottom: '0.5rem', marginBottom: '0.5rem', color: '#333' }}>Parties Involved</h4>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            <div style={{ marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                 <div>
-                                    <p style={{ color: '#666', fontSize: '0.875rem' }}>Plaintiff</p>
-                                    <p><strong>{dispute.creator_email}</strong></p>
+                                    <p><strong>Case ID:</strong> {dispute.id}</p>
+                                    <p><strong>Date Resolved:</strong> {new Date(dispute.updated_at).toLocaleDateString()}</p>
                                 </div>
-                                <div>
-                                    <p style={{ color: '#666', fontSize: '0.875rem' }}>Defendant</p>
-                                    <p><strong>{dispute.defendant_email}</strong></p>
+                                <div style={{ textAlign: 'right' }}>
+                                    <p><strong>Status:</strong> Resolved</p>
                                 </div>
                             </div>
-                        </div>
 
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            <h4 style={{ borderBottom: '1px solid #eee', paddingBottom: '0.5rem', marginBottom: '0.5rem', color: '#333' }}>Dispute Details</h4>
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                <tbody>
-                                    <tr>
-                                        <td style={{ padding: '4px 0', width: '100px', color: '#666' }}>Title:</td>
-                                        <td style={{ padding: '4px 0', fontWeight: '500' }}>{dispute.title}</td>
-                                    </tr>
-                                    <tr>
-                                        <td style={{ padding: '4px 0', color: '#666' }}>Category:</td>
-                                        <td style={{ padding: '4px 0' }}>{dispute.category}</td>
-                                    </tr>
-                                    <tr>
-                                        <td style={{ padding: '4px 0', color: '#666', verticalAlign: 'top' }}>Description:</td>
-                                        <td style={{ padding: '4px 0', whiteSpace: 'pre-wrap' }}>{dispute.description}</td>
-                                    </tr>
-                                    <tr>
-                                        <td style={{ padding: '4px 0', color: '#666' }}>Amount:</td>
-                                        <td style={{ padding: '4px 0' }}>{dispute.amount_disputed ? `$${dispute.amount_disputed}` : 'N/A'}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <h4 style={{ borderBottom: '1px solid #eee', paddingBottom: '0.5rem', marginBottom: '0.5rem', color: '#333' }}>Parties Involved</h4>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <div>
+                                        <p style={{ color: '#666', fontSize: '0.875rem' }}>Plaintiff</p>
+                                        <p><strong>{dispute.creator_email}</strong></p>
+                                    </div>
+                                    <div>
+                                        <p style={{ color: '#666', fontSize: '0.875rem' }}>Defendant</p>
+                                        <p><strong>{dispute.defendant_email}</strong></p>
+                                    </div>
+                                </div>
+                            </div>
 
-                        <div style={{ marginBottom: '2rem' }}>
-                            <h4 style={{ borderBottom: '1px solid #eee', paddingBottom: '0.5rem', marginBottom: '0.5rem', color: '#333' }}>Agreed Resolution</h4>
-                            <div style={{ background: '#f8f9fa', padding: '1rem', borderRadius: '4px', borderLeft: '4px solid var(--success-500)' }}>
-                                <strong style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--success-700)' }}>Opted Suggestion / Terms:</strong>
-                                {dispute.resolution_text || "No specific resolution text recorded."}
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <h4 style={{ borderBottom: '1px solid #eee', paddingBottom: '0.5rem', marginBottom: '0.5rem', color: '#333' }}>Dispute Details</h4>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <tbody>
+                                        <tr>
+                                            <td style={{ padding: '4px 0', width: '100px', color: '#666' }}>Title:</td>
+                                            <td style={{ padding: '4px 0', fontWeight: '500' }}>{dispute.title}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style={{ padding: '4px 0', color: '#666' }}>Category:</td>
+                                            <td style={{ padding: '4px 0' }}>{dispute.category}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style={{ padding: '4px 0', color: '#666', verticalAlign: 'top' }}>Description:</td>
+                                            <td style={{ padding: '4px 0', whiteSpace: 'pre-wrap' }}>{dispute.description}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style={{ padding: '4px 0', color: '#666' }}>Amount:</td>
+                                            <td style={{ padding: '4px 0' }}>{dispute.amount_disputed ? `$${dispute.amount_disputed}` : 'N/A'}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div style={{ marginBottom: '2rem' }}>
+                                <h4 style={{ borderBottom: '1px solid #eee', paddingBottom: '0.5rem', marginBottom: '0.5rem', color: '#333' }}>Agreed Resolution</h4>
+                                <div style={{ background: '#f8f9fa', padding: '1rem', borderRadius: '4px', borderLeft: '4px solid var(--success-500)' }}>
+                                    <strong style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--success-700)' }}>Opted Suggestion / Terms:</strong>
+                                    {dispute.resolution_text || "No specific resolution text recorded."}
+                                </div>
+                            </div>
+
+                            <p style={{ fontStyle: 'italic', fontSize: '0.9rem', color: '#666', lineHeight: '1.5' }}>
+                                By signing below (digitally), both parties acknowledge and accept the terms of this resolution as being full and final settlement of this dispute.
+                            </p>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '3rem' }}>
+                                <div style={{ textAlign: 'center' }}>
+                                    <div style={{ borderBottom: '1px solid black', width: '200px', marginBottom: '0.5rem', fontFamily: 'cursive', fontSize: '1.2rem' }}>{dispute.creator_email.split('@')[0]}</div>
+                                    <p style={{ fontSize: '0.875rem', color: '#666' }}>Plaintiff Signature (Digital)</p>
+                                </div>
+                                <div style={{ textAlign: 'center' }}>
+                                    <div style={{ borderBottom: '1px solid black', width: '200px', marginBottom: '0.5rem', fontFamily: 'cursive', fontSize: '1.2rem' }}>{dispute.defendant_email.split('@')[0]}</div>
+                                    <p style={{ fontSize: '0.875rem', color: '#666' }}>Defendant Signature (Digital)</p>
+                                </div>
+                            </div>
+
+                            <div style={{ marginTop: '3rem', textAlign: 'center', color: '#999', fontSize: '0.75rem', borderTop: '1px solid #eee', paddingTop: '1rem' }}>
+                                <p>Generated by AI Dispute Resolution Platform • {new Date().toLocaleDateString()}</p>
                             </div>
                         </div>
-
-                        <p style={{ fontStyle: 'italic', fontSize: '0.9rem', color: '#666', lineHeight: '1.5' }}>
-                            By signing below (digitally), both parties acknowledge and accept the terms of this resolution as being full and final settlement of this dispute.
-                        </p>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '3rem' }}>
-                            <div style={{ textAlign: 'center' }}>
-                                <div style={{ borderBottom: '1px solid black', width: '200px', marginBottom: '0.5rem', fontFamily: 'cursive', fontSize: '1.2rem' }}>{dispute.creator_email.split('@')[0]}</div>
-                                <p style={{ fontSize: '0.875rem', color: '#666' }}>Plaintiff Signature (Digital)</p>
-                            </div>
-                            <div style={{ textAlign: 'center' }}>
-                                <div style={{ borderBottom: '1px solid black', width: '200px', marginBottom: '0.5rem', fontFamily: 'cursive', fontSize: '1.2rem' }}>{dispute.defendant_email.split('@')[0]}</div>
-                                <p style={{ fontSize: '0.875rem', color: '#666' }}>Defendant Signature (Digital)</p>
-                            </div>
-                        </div>
-
-                        <div style={{ marginTop: '3rem', textAlign: 'center', color: '#999', fontSize: '0.75rem', borderTop: '1px solid #eee', paddingTop: '1rem' }}>
-                            <p>Generated by AI Dispute Resolution Platform • {new Date().toLocaleDateString()}</p>
-                        </div>
+                        <button className="btn-primary" style={{ marginTop: '1rem', width: '100%' }} onClick={() => window.print()}>
+                            Print / Download Agreement
+                        </button>
                     </div>
-                    <button className="btn-primary" style={{ marginTop: '1rem', width: '100%' }} onClick={() => window.print()}>
-                        Print / Download Agreement
-                    </button>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
 
