@@ -8,6 +8,7 @@ import Home from './pages/Home';
 import DisputeForm from './pages/DisputeForm';
 import DisputeDetails from './pages/DisputeDetails';
 import AdminPanel from './pages/AdminPanel';
+import DisputeList from './pages/DisputeList';
 import './emailConfigValidator'; // Validate email config on startup
 import './index.css';
 
@@ -87,6 +88,30 @@ function App() {
                         element={
                             <ProtectedRoute>
                                 <DisputeForm />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/dispute/filed"
+                        element={
+                            <ProtectedRoute>
+                                <DisputeList type="filed" />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/dispute/against"
+                        element={
+                            <ProtectedRoute>
+                                <DisputeList type="against" />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/dispute/all"
+                        element={
+                            <ProtectedRoute>
+                                <DisputeList type="all" />
                             </ProtectedRoute>
                         }
                     />

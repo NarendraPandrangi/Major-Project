@@ -31,10 +31,8 @@
 .header-left h1 {
     font-size: var(--font-size-xl);
     font-weight: 800;
-    background: linear-gradient(135deg, var(--primary-600), var(--accent-600));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--primary-700);
+    /* Fallback for readability */
     margin: 0;
 }
 
