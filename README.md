@@ -1,278 +1,184 @@
 # AI Dispute Resolver
 
-A comprehensive AI-powered dispute resolution platform with user authentication, Google OAuth integration, and intelligent dispute management.
+A comprehensive AI-powered dispute resolution platform that leverages modern web technologies to facilitate fair and efficient conflict resolution. The system features secure authentication, real-time updates, AI-driven insights, and a robust dispute management workflow.
 
-## Features
+## 🚀 Features
 
-### Authentication
-- ✅ **Email/Password Registration & Login**
-- ✅ **Google OAuth Sign-in/Sign-up**
-- ✅ **JWT Token-based Authentication**
-- ✅ **Secure Password Hashing (bcrypt)**
-- ✅ **Protected Routes**
-
-### User Management
-- User profiles with avatar support
-- Email verification status
-- Multiple authentication providers (local/Google)
-- Profile updates
+### Authentication & User Management
+- ✅ **Secure Authentication**: Email/Password login and Google OAuth integration via **Firebase Auth**.
+- ✅ **User Profiles**: Profile management with avatar support.
+- ✅ **Role-Based Access**: Distinct roles for Users and Admins.
+- ✅ **Password Management**: Secure password hashing and reset functionality.
 
 ### Dispute Resolution
-- File new disputes
-- View disputes filed by you
-- View disputes filed against you
-- AI-powered suggestions
-- Dispute status tracking (Pending, In Progress, Resolved, Rejected)
-- Multiple dispute categories (Property, Business, Family, Service, Employment, Contract)
+- ✅ **Filing System**: Easy-to-use forms for filing new disputes across various categories (Property, Business, Family, etc.).
+- ✅ **Case Management**: View disputes filed by you and against you.
+- ✅ **Status Tracking**: Track dispute progress (Open, In Progress, Resolved, Rejected).
+- ✅ **Evidence Management**: Support for uploading evidence documents and images with OCR capabilities.
+
+### AI Integration
+- ✅ **Smart Suggestions**: AI-powered analysis of disputes to suggest potential resolutions using **Kutrim LLM**.
+- ✅ **Legal Insights**: Automated generation of legal context and potential settlement terms.
+
+### Communication
+- ✅ **Email Notifications**: Automated emails for registration, dispute filing, and status updates using **EmailJS**.
+- ✅ **Admin Panel**: Dedicated interface for administrators to review and manage disputes.
 
 ### Dashboard
-- Statistics overview
-- Recent disputes
-- Quick actions
-- Notifications system
+- ✅ **Real-time Stats**: Overview of total, pending, and resolved disputes.
+- ✅ **Recent Activity**: Quick access to recently updated cases.
+- ✅ **Notifications**: In-app notification system for important updates.
 
-## Tech Stack
-
-### Backend
-- **FastAPI** - Modern Python web framework
-- **PostgreSQL** - Database
-- **SQLAlchemy** - ORM
-- **JWT** - Authentication tokens
-- **Google OAuth 2.0** - Social authentication
-- **Passlib** - Password hashing
+## 🛠️ Tech Stack
 
 ### Frontend
-- **React 18** - UI library
-- **Vite** - Build tool
-- **React Router** - Navigation
-- **@react-oauth/google** - Google OAuth integration
-- **Axios** - HTTP client
-- **Lucide React** - Icons
+- **Framework**: [React 18](https://reactjs.org/) with [Vite](https://vitejs.dev/)
+- **Styling**: Vanilla CSS with modern features (Variables, Flexbox/Grid, Animations)
+- **Routing**: [React Router v6](https://reactrouter.com/)
+- **Icons**: [Lucide React](https://lucide.dev/)
+- **HTTP Client**: [Axios](https://axios-http.com/)
+- **OCR**: [Tesseract.js](https://github.com/naptha/tesseract.js) for image text extraction
+- **Printing**: [react-to-print](https://github.com/gregnb/react-to-print) for generating PDF reports
 
-## Setup Instructions
+### Backend
+- **Framework**: [FastAPI](https://fastapi.tiangolo.com/) (Python)
+- **Database**: [Google Cloud Firestore](https://firebase.google.com/docs/firestore) (NoSQL)
+- **Authentication**: JWT (JSON Web Tokens) & Firebase Admin SDK
+- **AI Model**: Kutrim Private LLM integration
+- **Validation**: [Pydantic](https://docs.pydantic.dev/)
+
+### Infrastructure & Services
+- **Auth Provider**: Firebase Authentication
+- **Email Service**: EmailJS
+- **Hosting**: Vercel (Frontend & Backend capable)
+
+## 📂 Project Structure
+
+```
+Major-Project/
+├── backend/
+│   ├── routers/             # API route handlers
+│   │   ├── users.py         # Auth & User management
+│   │   ├── disputes.py      # Dispute CRUD & Logic
+│   │   ├── dashboard.py     # Stats aggregation
+│   │   ├── notifications.py # Notification system
+│   │   ├── ai.py            # AI integration
+│   │   └── admin.py         # Admin specific routes
+│   ├── main.py              # App entry point & CORS
+│   ├── database.py          # Firestore connection & helpers
+│   ├── auth.py              # JWT & OAuth utilities
+│   ├── email_service.py     # Email sending logic
+│   └── requirements.txt     # Python dependencies
+│
+└── frontend/
+    ├── src/
+    │   ├── api/             # Axios instances & endpoints
+    │   ├── context/         # React Context (Auth)
+    │   ├── pages/           # Application views
+    │   ├── firebase/        # Firebase config
+    │   └── ...
+    ├── public/
+    └── package.json
+```
+
+## ⚡ Setup Instructions
 
 ### Prerequisites
 - Python 3.9+
 - Node.js 18+
-- PostgreSQL 14+
-- Google Cloud Console account (for OAuth)
+- Firebase Project (Firestore & Auth enabled)
+- Kutrim API Key (for AI features)
+- EmailJS Account
 
-### 1. Google OAuth Setup
+### 1. Backend Setup
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select an existing one
-3. Enable the Google+ API
-4. Go to "Credentials" → "Create Credentials" → "OAuth 2.0 Client ID"
-5. Configure the OAuth consent screen
-6. Add authorized JavaScript origins:
-   - `http://localhost:3000`
-   - `http://localhost:5173`
-7. Add authorized redirect URIs:
-   - `http://localhost:3000`
-   - `http://localhost:5173`
-8. Copy the **Client ID** (you'll need this for both backend and frontend)
-
-### 2. Database Setup
-
-```powershell
-# Install PostgreSQL if not already installed
-# Create a new database
-psql -U postgres
-CREATE DATABASE dispute_resolver;
-\q
-```
-
-### 3. Backend Setup
-
-```powershell
-# Navigate to backend directory
+```bash
+# Navigate to backend
 cd backend
 
 # Create virtual environment
 python -m venv venv
-
-# Activate virtual environment
-.\venv\Scripts\Activate
+# Windows: .\venv\Scripts\activate
+# Mac/Linux: source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
 
 # Create .env file
-Copy-Item .env.example .env
-
-# Edit .env file with your configuration
-# - Update DATABASE_URL with your PostgreSQL credentials
-# - Generate a secure SECRET_KEY: python -c "import secrets; print(secrets.token_hex(32))"
-# - Add your GOOGLE_CLIENT_ID from Google Cloud Console
-
-# Run the application
-python main.py
+cp .env.example .env
 ```
 
-The backend will start at `http://localhost:8000`
+**Configure `.env`:**
+```env
+# Firebase Configuration
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_API_KEY=your-api-key
 
-### 4. Frontend Setup
+# App Security
+SECRET_KEY=your-secure-secret-key
+ACCESS_TOKEN_EXPIRE_MINUTES=10080
 
-```powershell
-# Open a new terminal
-# Navigate to frontend directory
+# AI Configuration
+KUTRIM_API_KEY=your-kutrim-key
+```
+
+Run the server:
+```bash
+python main.py
+# Server starts at http://localhost:8000
+```
+
+### 2. Frontend Setup
+
+```bash
+# Navigate to frontend
 cd frontend
 
 # Install dependencies
 npm install
 
 # Create .env file
-Copy-Item .env.example .env
-
-# Edit .env file
-# - Add your VITE_GOOGLE_CLIENT_ID (same as backend)
-
-# Run the development server
-npm run dev
+cp .env.example .env
 ```
 
-The frontend will start at `http://localhost:3000`
-
-## Environment Variables
-
-### Backend (.env)
-```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dispute_resolver
-SECRET_KEY=your-generated-secret-key
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=10080
-GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
-```
-
-### Frontend (.env)
+**Configure `.env`:**
 ```env
 VITE_API_URL=http://localhost:8000
-VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+# Firebase config is managed in src/firebase/config.js
 ```
 
-## API Endpoints
-
-### Authentication
-- `POST /api/auth/register` - Register with email/password
-- `POST /api/auth/login` - Login with email/password
-- `POST /api/auth/login/email` - Login with JSON body
-- `POST /api/auth/google` - Google OAuth authentication
-- `GET /api/auth/me` - Get current user
-- `PUT /api/auth/me` - Update user profile
-
-### Disputes
-- `POST /api/disputes/` - Create new dispute
-- `GET /api/disputes/` - Get all disputes
-- `GET /api/disputes/filed` - Get disputes filed by user
-- `GET /api/disputes/against` - Get disputes against user
-- `GET /api/disputes/{id}` - Get specific dispute
-- `PUT /api/disputes/{id}/status` - Update dispute status
-
-### Dashboard
-- `GET /api/dashboard/stats` - Get dashboard statistics
-
-### Notifications
-- `GET /api/notifications/` - Get all notifications
-- `GET /api/notifications/unread` - Get unread notifications
-- `PUT /api/notifications/{id}/read` - Mark notification as read
-- `PUT /api/notifications/read-all` - Mark all as read
-
-## Project Structure
-
-```
-Major-Project/
-├── backend/
-│   ├── routers/
-│   │   ├── users.py          # Authentication routes
-│   │   ├── disputes.py       # Dispute management
-│   │   ├── dashboard.py      # Dashboard stats
-│   │   └── notifications.py  # Notifications
-│   ├── main.py              # FastAPI application
-│   ├── database.py          # Database configuration
-│   ├── models.py            # SQLAlchemy models
-│   ├── schemas.py           # Pydantic schemas
-│   ├── auth.py              # Authentication utilities
-│   ├── requirements.txt     # Python dependencies
-│   └── .env.example         # Environment template
-│
-└── frontend/
-    ├── src/
-    │   ├── api/
-    │   │   └── client.js    # Axios API client
-    │   ├── context/
-    │   │   └── AuthContext.jsx  # Auth state management
-    │   ├── pages/
-    │   │   ├── Home.jsx     # Landing page
-    │   │   ├── Login.jsx    # Login page
-    │   │   ├── Register.jsx # Registration page
-    │   │   └── Dashboard.jsx # Dashboard
-    │   ├── App.jsx          # Main app component
-    │   ├── main.jsx         # Entry point
-    │   └── index.css        # Global styles
-    ├── package.json
-    ├── vite.config.js
-    └── .env.example
+Run the development server:
+```bash
+npm run dev
+# App starts at http://localhost:5173
 ```
 
-## Features Implemented
+## 🔒 Environment Variables
 
-### ✅ Registration
-- Email/password registration with validation
-- Password strength requirements (min 8 characters)
-- Username uniqueness check
-- Automatic JWT token generation
-- Google OAuth registration
+### Backend
+| Variable | Description |
+|----------|-------------|
+| `FIREBASE_PROJECT_ID` | Your Firebase project ID |
+| `FIREBASE_API_KEY` | Your Firebase web API key |
+| `SECRET_KEY` | Secret for JWT encoding |
+| `KUTRIM_API_KEY` | API key for AI services |
 
-### ✅ Login
-- Email/password authentication
-- Form validation
-- Error handling
-- Google OAuth login
-- Automatic token storage
-- Protected route redirection
+### Frontend
+| Variable | Description |
+|----------|-------------|
+| `VITE_API_URL` | URL of the backend API |
+| `VITE_EMAILJS_SERVICE_ID` | EmailJS Service ID |
+| `VITE_EMAILJS_TEMPLATE_ID` | EmailJS Template ID |
+| `VITE_EMAILJS_PUBLIC_KEY` | EmailJS Public Key |
 
-### ✅ Google OAuth
-- One-tap sign-in
-- Automatic account creation
-- Account linking for existing users
-- Profile picture sync
-- Email verification status
+## 🤝 Contributing
 
-### ✅ Security
-- Password hashing with bcrypt
-- JWT token authentication
-- Token expiration (7 days)
-- Secure HTTP-only cookies support
-- CORS configuration
-- SQL injection protection (SQLAlchemy ORM)
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-## Design Highlights
+## 📄 License
 
-- **Modern UI/UX** with gradient backgrounds and animations
-- **Glassmorphism effects** on authentication pages
-- **Responsive design** for mobile and desktop
-- **Premium aesthetics** with custom color palette
-- **Smooth transitions** and micro-animations
-- **Google Fonts** (Inter) for typography
-- **Lucide React icons** for consistent iconography
-
-## Next Steps
-
-To complete the AI Dispute Resolver platform, you can add:
-
-1. **AI/ML Integration** - Implement dispute suggestion algorithms
-2. **File Upload** - Support for evidence documents
-3. **Real-time Notifications** - WebSocket integration
-4. **Email Verification** - Send verification emails
-5. **Password Reset** - Forgot password functionality
-6. **Admin Panel** - Manage users and disputes
-7. **Analytics** - Advanced reporting and insights
-8. **Export Features** - PDF generation for disputes
-
-## License
-
-MIT License - feel free to use this project for your needs.
-
-## Support
-
-For issues or questions, please create an issue in the repository.
+Distributed under the MIT License. See `LICENSE` for more information.
