@@ -78,17 +78,7 @@ const Register = () => {
         }
     };
 
-    const handleGoogleSuccess = async (credentialResponse) => {
-        setLoading(true);
-        const result = await googleLogin(credentialResponse.credential);
-        setLoading(false);
 
-        if (result.success) {
-            navigate('/dashboard');
-        } else {
-            setErrors({ submit: result.error });
-        }
-    };
 
     const handleGoogleSignIn = async () => {
         setLoading(true);

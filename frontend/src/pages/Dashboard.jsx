@@ -105,13 +105,7 @@ const Dashboard = () => {
         navigate('/login');
     };
 
-    if (loading) {
-        return (
-            <div className="dashboard-loading">
-                <div className="spinner"></div>
-            </div>
-        );
-    }
+    // Loading state is now handled within the UI components for better perceived performance
 
     return (
         <div className="dashboard-page">
@@ -210,7 +204,9 @@ const Dashboard = () => {
                                 <FileText size={24} style={{ color: 'var(--primary-700)' }} />
                             </div>
                             <div className="stat-content">
-                                <div className="stat-value">{stats?.total_disputes || 0}</div>
+                                <div className="stat-value">
+                                    {loading ? <div className="skeleton-text" style={{ width: '40px', height: '32px' }}></div> : (stats?.total_disputes || 0)}
+                                </div>
                                 <div className="stat-label">Total Disputes</div>
                             </div>
                         </div>
@@ -220,7 +216,9 @@ const Dashboard = () => {
                                 <Clock size={24} style={{ color: 'var(--warning)' }} />
                             </div>
                             <div className="stat-content">
-                                <div className="stat-value">{stats?.pending_disputes || 0}</div>
+                                <div className="stat-value">
+                                    {loading ? <div className="skeleton-text" style={{ width: '40px', height: '32px' }}></div> : (stats?.pending_disputes || 0)}
+                                </div>
                                 <div className="stat-label">Pending</div>
                             </div>
                         </div>
@@ -230,7 +228,9 @@ const Dashboard = () => {
                                 <CheckCircle size={24} style={{ color: 'var(--success)' }} />
                             </div>
                             <div className="stat-content">
-                                <div className="stat-value">{stats?.resolved_disputes || 0}</div>
+                                <div className="stat-value">
+                                    {loading ? <div className="skeleton-text" style={{ width: '40px', height: '32px' }}></div> : (stats?.resolved_disputes || 0)}
+                                </div>
                                 <div className="stat-label">Resolved</div>
                             </div>
                         </div>
@@ -240,7 +240,9 @@ const Dashboard = () => {
                                 <TrendingUp size={24} style={{ color: 'var(--accent-700)' }} />
                             </div>
                             <div className="stat-content">
-                                <div className="stat-value">{stats?.disputes_filed || 0}</div>
+                                <div className="stat-value">
+                                    {loading ? <div className="skeleton-text" style={{ width: '40px', height: '32px' }}></div> : (stats?.disputes_filed || 0)}
+                                </div>
                                 <div className="stat-label">Filed by You</div>
                             </div>
                         </div>
@@ -273,81 +275,95 @@ const Dashboard = () => {
 
 
                     {/* Recent Disputes */}
-                    {stats?.recent_disputes && stats.recent_disputes.length > 0 && (
-                        <div className="recent-disputes fade-in">
-                            <h3>Recent Disputes</h3>
+                    <div className="recent-disputes fade-in">
+                        <h3>Recent Disputes</h3>
+                        {loading ? (
                             <div className="disputes-list">
-                                {stats.recent_disputes.map((dispute) => (
-                                    <div
-                                        key={dispute.id}
-                                        className="dispute-item"
-                                        onClick={() => navigate(`/dispute/${dispute.id}`)}
-                                        style={{ cursor: 'pointer' }}
-                                    >
-                                        <div className="dispute-header">
-                                            <h4>{dispute.title}</h4>
-                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                                <span className={`status-badge status-${dispute.status}`}>
-                                                    {dispute.status}
-                                                </span>
-                                                {/* Accept Button for Defendant in Dashboard */}
-                                                {user && user.email === dispute.defendant_email && dispute.status === 'Open' && (
-                                                    <div style={{ display: 'flex', gap: '8px' }}>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation(); // prevent navigation
-                                                                handleAccept(dispute.id);
-                                                            }}
-                                                            className="btn-primary-sm"
-                                                            style={{
-                                                                fontSize: '0.75rem',
-                                                                padding: '0.25rem 0.5rem',
-                                                                background: 'var(--primary-600)',
-                                                                color: 'white',
-                                                                border: 'none',
-                                                                borderRadius: '4px',
-                                                                cursor: 'pointer'
-                                                            }}
-                                                        >
-                                                            Accept
-                                                        </button>
-                                                        <button
-                                                            onClick={async (e) => {
-                                                                e.stopPropagation();
-                                                                if (!window.confirm("Reject this case? It will be closed effectively.")) return;
-                                                                try {
-                                                                    await disputeAPI.reject(dispute.id);
-                                                                    fetchDashboardStats();
-                                                                } catch (err) {
-                                                                    alert('Failed to reject: ' + (err.response?.data?.detail || err.message));
-                                                                }
-                                                            }}
-                                                            className="btn-danger-sm"
-                                                            style={{
-                                                                fontSize: '0.75rem',
-                                                                padding: '0.25rem 0.5rem',
-                                                                background: 'var(--error-600)',
-                                                                color: 'white',
-                                                                border: 'none',
-                                                                borderRadius: '4px',
-                                                                cursor: 'pointer'
-                                                            }}
-                                                        >
-                                                            Reject
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <p className="dispute-category">{dispute.category}</p>
-                                        <p className="dispute-date">
-                                            Filed on {new Date(dispute.created_at).toLocaleDateString()}
-                                        </p>
+                                {[1, 2, 3].map(i => (
+                                    <div key={i} className="dispute-item skeleton-item" style={{ height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <div className="spinner-sm" style={{ borderColor: 'var(--primary-200)', borderTopColor: 'var(--primary-600)' }}></div>
                                     </div>
                                 ))}
                             </div>
-                        </div>
-                    )}
+                        ) : (
+                            stats?.recent_disputes && stats.recent_disputes.length > 0 ? (
+                                <div className="disputes-list">
+                                    {stats.recent_disputes.map((dispute) => (
+                                        <div
+                                            key={dispute.id}
+                                            className="dispute-item"
+                                            onClick={() => navigate(`/dispute/${dispute.id}`)}
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            <div className="dispute-header">
+                                                <h4>{dispute.title}</h4>
+                                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                    <span className={`status-badge status-${dispute.status}`}>
+                                                        {dispute.status}
+                                                    </span>
+                                                    {/* Accept Button for Defendant in Dashboard */}
+                                                    {user && user.email === dispute.defendant_email && dispute.status === 'Open' && (
+                                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation(); // prevent navigation
+                                                                    handleAccept(dispute.id);
+                                                                }}
+                                                                className="btn-primary-sm"
+                                                                style={{
+                                                                    fontSize: '0.75rem',
+                                                                    padding: '0.25rem 0.5rem',
+                                                                    background: 'var(--primary-600)',
+                                                                    color: 'white',
+                                                                    border: 'none',
+                                                                    borderRadius: '4px',
+                                                                    cursor: 'pointer'
+                                                                }}
+                                                            >
+                                                                Accept
+                                                            </button>
+                                                            <button
+                                                                onClick={async (e) => {
+                                                                    e.stopPropagation();
+                                                                    if (!window.confirm("Reject this case? It will be closed effectively.")) return;
+                                                                    try {
+                                                                        await disputeAPI.reject(dispute.id);
+                                                                        fetchDashboardStats();
+                                                                    } catch (err) {
+                                                                        alert('Failed to reject: ' + (err.response?.data?.detail || err.message));
+                                                                    }
+                                                                }}
+                                                                className="btn-danger-sm"
+                                                                style={{
+                                                                    fontSize: '0.75rem',
+                                                                    padding: '0.25rem 0.5rem',
+                                                                    background: 'var(--error-600)',
+                                                                    color: 'white',
+                                                                    border: 'none',
+                                                                    borderRadius: '4px',
+                                                                    cursor: 'pointer'
+                                                                }}
+                                                            >
+                                                                Reject
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <p className="dispute-category">{dispute.category}</p>
+                                            <p className="dispute-date">
+                                                Filed on {new Date(dispute.created_at).toLocaleDateString()}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="empty-state">
+                                    <p>No recent disputes found.</p>
+                                </div>
+                            )
+                        )}
+                    </div>
                 </div>
             </main>
         </div>

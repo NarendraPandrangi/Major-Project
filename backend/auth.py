@@ -125,14 +125,39 @@ async def get_current_user_firestore(token: str = Depends(oauth2_scheme)):
     
     return user_data
 
+FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID", "")
+
 async def verify_google_token(token: str) -> dict:
-    """Verify Google OAuth token and return user info"""
+    """Verify Google OAuth token or Firebase ID token and return user info"""
     try:
+        # Try verifying as Firebase ID token first (most likely case for current frontend)
+        if FIREBASE_PROJECT_ID:
+            try:
+                idinfo = id_token.verify_firebase_token(
+                    token, 
+                    google_requests.Request(), 
+                    audience=FIREBASE_PROJECT_ID
+                )
+                
+                return {
+                    'google_id': idinfo['sub'],
+                    'email': idinfo['email'],
+                    'full_name': idinfo.get('name', ''),
+                    'profile_picture': idinfo.get('picture', ''),
+                    'is_verified': idinfo.get('email_verified', False)
+                }
+            except ValueError:
+                # If Firebase verification fails, continue to try Google ID token
+                pass
+
+        # Fallback to Google ID Token verification
+        audience = GOOGLE_CLIENT_ID if GOOGLE_CLIENT_ID else None
+        
         # Verify the token
         idinfo = id_token.verify_oauth2_token(
             token, 
             google_requests.Request(), 
-            GOOGLE_CLIENT_ID
+            audience
         )
         
         # Verify the issuer
@@ -149,5 +174,5 @@ async def verify_google_token(token: str) -> dict:
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid Google token: {str(e)}"
+            detail=f"Invalid token: {str(e)}"
         )
