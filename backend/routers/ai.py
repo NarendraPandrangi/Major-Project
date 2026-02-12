@@ -14,6 +14,7 @@ router = APIRouter()
 
 class SuggestionRequest(BaseModel):
     dispute_id: str
+    force: bool = False
 
 @router.post("/suggestions")
 async def get_suggestions(
@@ -38,7 +39,7 @@ async def get_suggestions(
         existing_suggestions = dispute_data.get('ai_suggestions')
         existing_analysis = dispute_data.get('ai_analysis')
         
-        if existing_suggestions and isinstance(existing_suggestions, list) and len(existing_suggestions) > 0:
+        if not request.force and existing_suggestions and isinstance(existing_suggestions, list) and len(existing_suggestions) > 0:
             print(f"DEBUG: Returning existing suggestions for dispute {request.dispute_id}", file=sys.stderr)
             return {
                 "raw_response": existing_analysis or "Analysis retrieved from database.",
@@ -83,7 +84,11 @@ async def get_suggestions(
             ]
         }}
         
-        Do not include any markdown formatting like ```json ... ```. Just return the raw JSON string.
+        CRITICAL RULES:
+        - Your ENTIRE response must be ONLY the JSON object, nothing else.
+        - Do NOT include any markdown formatting like ```json ... ```.
+        - Do NOT include any text before or after the JSON.
+        - Do NOT say "Here is" or any introduction. Just the raw JSON.
         """
         
         # 4. Call Kutrim API
@@ -109,7 +114,7 @@ async def get_suggestions(
         payload = {
             "model": "Krutrim-spectre-v2",
             "messages": [
-                {"role": "system", "content": "You are a helpful legal dispute mediator who outputs only valid JSON."},
+                {"role": "system", "content": "You are a legal dispute mediator. You MUST respond with ONLY a valid JSON object. No introductory text, no explanations, no markdown. Your entire response must be parseable JSON."},
                 {"role": "user", "content": prompt}
             ],
             "max_tokens": 1024,
@@ -134,25 +139,48 @@ async def get_suggestions(
         content = ai_response["choices"][0]["message"]["content"]
         print(f"DEBUG: Raw AI Content: {content[:200]}...", file=sys.stderr)
         
-        # Clean potential markdown
+        # Clean potential markdown and preamble text
         content = content.replace("```json", "").replace("```", "").strip()
         
         import re
+        parsed_content = None
+        
+        # First, try to parse the entire content as JSON
         try:
             parsed_content = json.loads(content)
+            print("DEBUG: Direct JSON parse succeeded", file=sys.stderr)
         except json.JSONDecodeError:
-            # Fallback: Try to find JSON object within the text
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
-            if json_match:
+            print(f"DEBUG: Direct JSON parse failed, trying extraction...", file=sys.stderr)
+            # Fallback: Find the first complete JSON object using brace matching
+            start_idx = content.find('{')
+            if start_idx != -1:
+                # Find the matching closing brace
+                brace_count = 0
+                end_idx = start_idx
+                for i in range(start_idx, len(content)):
+                    if content[i] == '{':
+                        brace_count += 1
+                    elif content[i] == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            end_idx = i + 1
+                            break
+                
+                json_str = content[start_idx:end_idx]
                 try:
-                    parsed_content = json.loads(json_match.group())
+                    parsed_content = json.loads(json_str)
                     print("DEBUG: JSON extracted from text successfully", file=sys.stderr)
                 except json.JSONDecodeError:
-                     print(f"Failed to parse extracted JSON: {content}", file=sys.stderr)
-                     parsed_content = None
+                    # Last resort: regex
+                    json_match = re.search(r'\{.*\}', content, re.DOTALL)
+                    if json_match:
+                        try:
+                            parsed_content = json.loads(json_match.group())
+                            print("DEBUG: JSON extracted via regex", file=sys.stderr)
+                        except json.JSONDecodeError:
+                            print(f"Failed to parse extracted JSON: {content}", file=sys.stderr)
             else:
                 print(f"No JSON object found in response: {content}", file=sys.stderr)
-                parsed_content = None
 
         if parsed_content:
             # Handle cases where keys exist but values are None (null in JSON)

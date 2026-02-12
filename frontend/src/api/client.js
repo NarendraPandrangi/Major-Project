@@ -88,7 +88,7 @@ export const notificationsAPI = {
 };
 
 export const aiAPI = {
-    getSuggestions: (disputeId) => api.post('/api/ai/suggestions', { dispute_id: disputeId }),
+    getSuggestions: (disputeId, force = false) => api.post('/api/ai/suggestions', { dispute_id: disputeId, force }),
 };
 
 // Admin API

@@ -11,10 +11,10 @@ const DisputeAISolutions = ({ dispute, isPlaintiff, isDefendant, onRefresh }) =>
         setAiAnalysis(dispute.ai_analysis);
     }, [dispute.ai_analysis]);
 
-    const handleGenerateSuggestions = async () => {
+    const handleGenerateSuggestions = async (force = false) => {
         setAnalyzing(true);
         try {
-            const response = await aiAPI.getSuggestions(dispute.id);
+            const response = await aiAPI.getSuggestions(dispute.id, force);
             if (response.data.raw_response) {
                 setAiAnalysis(response.data.raw_response);
                 if (onRefresh) await onRefresh();
@@ -172,7 +172,7 @@ const DisputeAISolutions = ({ dispute, isPlaintiff, isDefendant, onRefresh }) =>
                         )}
 
                         <button
-                            onClick={handleGenerateSuggestions}
+                            onClick={() => handleGenerateSuggestions(true)}
                             disabled={analyzing}
                             className="btn-secondary"
                             style={{ marginTop: '1.5rem', width: '100%', justifyContent: 'center' }}
