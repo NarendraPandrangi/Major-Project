@@ -23,7 +23,8 @@ const DisputeAISolutions = ({ dispute, isPlaintiff, isDefendant, onRefresh }) =>
             }
         } catch (err) {
             console.error('AI Error:', err);
-            alert('Failed to generate suggestions.');
+            const msg = err.response?.data?.detail || err.response?.data?.raw_response || err.message || 'Failed to generate suggestions.';
+            alert(`Error: ${msg}`);
         } finally {
             setAnalyzing(false);
         }
@@ -222,7 +223,7 @@ const DisputeAISolutions = ({ dispute, isPlaintiff, isDefendant, onRefresh }) =>
                     </div>
                 ) : (
                     <button
-                        onClick={handleGenerateSuggestions}
+                        onClick={() => handleGenerateSuggestions()}
                         disabled={analyzing}
                         className="analyze-btn"
                     >

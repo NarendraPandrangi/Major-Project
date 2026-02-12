@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 import os
 import requests
+import time
 import auth
 from database import get_firestore_db, Collections
 from dotenv import load_dotenv
@@ -61,56 +62,74 @@ async def get_suggestions(
         
         amount = dispute_data.get('amount_disputed', 'N/A')
         
+        # Logic to avoid repeating suggestions if force=True
+        avoid_suggestions_text = ""
+        try:
+            if request.force and existing_suggestions:
+                 previous_texts = []
+                 if isinstance(existing_suggestions, list):
+                     for s in existing_suggestions:
+                         if isinstance(s, dict):
+                             txt = s.get('text', '')
+                             if txt: previous_texts.append(txt)
+                         elif isinstance(s, str) and s:
+                             previous_texts.append(s)
+                 
+                 if previous_texts:
+                     avoid_suggestions_text = "\nPREVIOUSLY SUGGESTED (DO NOT REPEAT THESE, GENERATE 3 NEW/DIFFERENT OPTIONS):\n" + "\n".join([f"- {t}" for t in previous_texts])
+        except Exception as e:
+            print(f"Warning: Failed to process existing suggestions: {e}", file=sys.stderr)
+
         prompt = f"""
-        You are a Neutral Dispute Resolution Mediator. Value: {amount}.
+        You are the Binding Arbitrator for this digital dispute resolution platform.
+        Value: {amount}.
         
-        DISPUTE CONTEXT:
+        DISPUTE FACTS:
         Title: {dispute_data.get('title')}
         Description: {dispute_data.get('description')}
-        Evidence: {dispute_data.get('evidence_text') or "None provided"}
+        Evidence Summary: {dispute_data.get('evidence_text') or "Standard evidence review"}
         
-        YOUR TASK:
-        Generate exactly 3 resolution options.
+        {avoid_suggestions_text}
+
+        YOUR MANDATE:
+        Generate exactly 3 CONCRETE, FINAL settlement options.
         
-        STRICT RULES:
-        - Do NOT assume either party is correct. Remain neutral.
-        - Each option must protect BOTH parties (e.g. "Payment released UPON proof").
-        - Avoid automatic deductions without detailed justification.
-        - Require documentation/evidence before any financial decision.
-        - Use neutral, professional language. NO emotional tone.
-        - NO legal threats.
-        - NO REFERRALS to external courts. YOU are the mediator.
+        CRITICAL RULES (VIOLATIONS WILL CAUSE SYSTEM FAILURE):
+        1. YOU ARE THE FINAL AUTHORITY. DO NOT suggest "hiring a mediator", "professional mediator intervenes", "going to court", "consulting a lawyer", or "third party arbitration".
+        2. NEVER suggest a "process" (like "start mediation"). ONLY suggest "OUTCOMES" (like "Pay $500").
+        3. If you suggest a split, specify the exact amounts (e.g. "Split 50/50: Plaintiff gets $X, Defendant keeps $Y").
+        4. Options must be actionable SETTLEMENTS (e.g., "Party A pays Party B $X", "Party A completes work by Date Y", "Full refund processed").
+        5. Do NOT provide vague advice like "communicate better". Give specific terms.
         
-        FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
+        REQUIRED OUTPUT FORMAT (Follow this structure exactly):
         
-        Thinking: [Analyze the procedural needs of the case...]
+        Analysis: [Provide a 2-3 sentence summary of the core conflict and why these options are fair. Do NOT use bullet points here.]
         
-        Analysis: [Two sentences neutrally summarizing the claim vs defense status]
-        
-        Option 1: [Resolution Option 1 text]
-        Option 2: [Resolution Option 2 text]
-        Option 3: [Resolution Option 3 text]
+        Option 1: [Specific settlement term. e.g., "Full Refund of $500"]
+        Option 2: [Specific settlement term. e.g., "Partial Refund of $250 and keep the item"]
+        Option 3: [Specific settlement term. e.g., "Replacement unit shipped within 5 business days"]
         """
         
         # 4. Call Kutrim API
         api_key = os.getenv("KUTRIM_API_KEY")
-        # ... (API Key check omitted for brevity, keeping existing logic) ...
         
-        if not api_key:
-             # ... (Keep existing error handling) ...
-             return {"raw_response": "API Key Missing", "suggestions": []}
+        # Check API Key
+        if not api_key: 
+            print("Error: KUTRIM_API_KEY not found in environment variables", file=sys.stderr) 
+            return {"raw_response": "Server Configuration Error: API Key Missing", "suggestions": []}
 
         url = "https://cloud.olakrutrim.com/v1/chat/completions" 
         
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}"
+            "Authorization": f"Bearer {api_key}",
+            "User-Agent": "AI-Dispute-Resolver/1.0"
         }
         
         payload = {
             "model": "Krutrim-spectre-v2",
             "messages": [
-                {"role": "system", "content": "You are a dispute arbitrator. Output specifically formatted text options."},
+                {"role": "system", "content": "You are an automated binding arbitration algorithm. You output only concrete final settlement terms. You NEVER suggest external mediation."},
                 {"role": "user", "content": prompt}
             ],
             "max_tokens": 1024,
@@ -118,9 +137,31 @@ async def get_suggestions(
         }
         
         print(f"DEBUG: Sending request to Kutrim API... Prompt len: {len(prompt)}", file=sys.stderr)
-        response = requests.post(url, json=payload, headers=headers)
         
-        # ... (Keep existing response check)...
+        # Retry logic for connection stability
+        max_retries = 3
+        response = None
+        
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(url, json=payload, headers=headers, timeout=15)
+                if response.status_code == 200:
+                    break
+                else:
+                    print(f"DEBUG: Attempt {attempt+1} failed with status {response.status_code}", file=sys.stderr)
+            except requests.exceptions.RequestException as e:
+                print(f"DEBUG: Attempt {attempt+1} failed with error: {e}", file=sys.stderr)
+                if attempt == max_retries - 1:
+                    error_msg = f"AI Service Unavailable: {str(e)}"
+                    try:
+                         dispute_ref.update({"ai_analysis": error_msg, "ai_suggestions": []})
+                    except: pass
+                    return {"raw_response": error_msg, "suggestions": []}
+                time.sleep(2) # Wait before retrying
+        
+        if not response:
+             return {"raw_response": "Failed to connect to AI service.", "suggestions": []}
+
         if response.status_code != 200:
              error_msg = f"AI Service Provider Error ({response.status_code}): {response.text[:100]}..."
              print(f"Kutrim API Error: {response.status_code} - {response.text}", file=sys.stderr)
@@ -137,9 +178,19 @@ async def get_suggestions(
         # --- ROBUST PARSING LOGIC ---
         import re
         
-        # Extract Analysis (ignore "Thinking:" section)
-        analysis_match = re.search(r"Analysis:\s*(.*?)(?=(Option|Verdict|1[\.\)])\s*1)", content, re.DOTALL | re.IGNORECASE)
-        analysis_text = analysis_match.group(1).strip() if analysis_match else "Analysis not generated."
+        # 1. Extract Analysis
+        # Try to find "Analysis:" explicitly
+        analysis_match = re.search(r"Analysis:?\s*(.*?)(?=(Option|Verdict|1[\.\)])\s*[:\.]?\d)", content, re.DOTALL | re.IGNORECASE)
+        
+        if analysis_match:
+            analysis_text = analysis_match.group(1).strip()
+        else:
+            # Fallback: Take the first paragraph if it looks like text and not an option
+            first_part = content.split("Option")[0].strip()
+            if len(first_part) > 10 and "1." not in first_part[:5]:
+                analysis_text = first_part
+            else:
+                analysis_text = "Analysis provided in options below."
         
         suggestions_list = []
         
