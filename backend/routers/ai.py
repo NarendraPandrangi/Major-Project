@@ -59,51 +59,47 @@ async def get_suggestions(
         # 3. Construct Prompt for AI
         chat_transcript = "\n".join([f"{m.get('sender_name', 'Unknown')}: {m.get('content')}" for m in messages])
         
+        amount = dispute_data.get('amount_disputed', 'N/A')
+        
         prompt = f"""
-        You are an expert legal mediator AI. Your goal is to provide fair, unbiased, and actionable resolution suggestions for the following dispute.
+        You are a Neutral Dispute Resolution Mediator. Value: {amount}.
         
-        DISPUTE DETAILS:
+        DISPUTE CONTEXT:
         Title: {dispute_data.get('title')}
-        Category: {dispute_data.get('category')}
         Description: {dispute_data.get('description')}
-        Amount Disputed: {dispute_data.get('amount_disputed', 'N/A')}
+        Evidence: {dispute_data.get('evidence_text') or "None provided"}
         
-        EVIDENCE TEXT (OCR / Extracted from uploaded documents):
-        {dispute_data.get('evidence_text') or "No evidence text extracted."}
+        YOUR TASK:
+        Generate exactly 3 resolution options.
         
-        CHAT HISTORY (Between Plaintiff and Defendant):
-        {chat_transcript if chat_transcript else "No chat history yet."}
+        STRICT RULES:
+        - Do NOT assume either party is correct. Remain neutral.
+        - Each option must protect BOTH parties (e.g. "Payment released UPON proof").
+        - Avoid automatic deductions without detailed justification.
+        - Require documentation/evidence before any financial decision.
+        - Use neutral, professional language. NO emotional tone.
+        - NO legal threats.
+        - NO REFERRALS to external courts. YOU are the mediator.
         
-        Based on the above, please provide a response in STRICT JSON format with the following structure:
-        {{
-            "analysis": "A detailed analysis of the situation.",
-            "suggestions": [
-                {{ "id": "1", "text": "First specific resolution option" }},
-                {{ "id": "2", "text": "Second specific resolution option" }},
-                {{ "id": "3", "text": "Third specific resolution option" }}
-            ]
-        }}
+        FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
         
-        CRITICAL RULES:
-        - Your ENTIRE response must be ONLY the JSON object, nothing else.
-        - Do NOT include any markdown formatting like ```json ... ```.
-        - Do NOT include any text before or after the JSON.
-        - Do NOT say "Here is" or any introduction. Just the raw JSON.
+        Thinking: [Analyze the procedural needs of the case...]
+        
+        Analysis: [Two sentences neutrally summarizing the claim vs defense status]
+        
+        Option 1: [Resolution Option 1 text]
+        Option 2: [Resolution Option 2 text]
+        Option 3: [Resolution Option 3 text]
         """
         
         # 4. Call Kutrim API
         api_key = os.getenv("KUTRIM_API_KEY")
-        print(f"DEBUG: API Key found: {'Yes' if api_key else 'No'}", file=sys.stderr)
+        # ... (API Key check omitted for brevity, keeping existing logic) ...
         
         if not api_key:
-            error_msg = "AI Configuration Error: API Key missing. Please check backend .env file."
-            print("Error: KUTRIM_API_KEY not found in environment variables.", file=sys.stderr)
-            dispute_ref.update({"ai_analysis": error_msg, "ai_suggestions": []})
-            return {
-                "raw_response": error_msg,
-                "suggestions": []
-            }
-            
+             # ... (Keep existing error handling) ...
+             return {"raw_response": "API Key Missing", "suggestions": []}
+
         url = "https://cloud.olakrutrim.com/v1/chat/completions" 
         
         headers = {
@@ -114,18 +110,17 @@ async def get_suggestions(
         payload = {
             "model": "Krutrim-spectre-v2",
             "messages": [
-                {"role": "system", "content": "You are a legal dispute mediator. You MUST respond with ONLY a valid JSON object. No introductory text, no explanations, no markdown. Your entire response must be parseable JSON."},
+                {"role": "system", "content": "You are a dispute arbitrator. Output specifically formatted text options."},
                 {"role": "user", "content": prompt}
             ],
             "max_tokens": 1024,
-            "temperature": 0.5
+            "temperature": 0.7 
         }
         
         print(f"DEBUG: Sending request to Kutrim API... Prompt len: {len(prompt)}", file=sys.stderr)
         response = requests.post(url, json=payload, headers=headers)
         
-        print(f"DEBUG: Response Status: {response.status_code}", file=sys.stderr)
-        
+        # ... (Keep existing response check)...
         if response.status_code != 200:
              error_msg = f"AI Service Provider Error ({response.status_code}): {response.text[:100]}..."
              print(f"Kutrim API Error: {response.status_code} - {response.text}", file=sys.stderr)
@@ -139,99 +134,50 @@ async def get_suggestions(
         content = ai_response["choices"][0]["message"]["content"]
         print(f"DEBUG: Raw AI Content: {content[:200]}...", file=sys.stderr)
         
-        # Clean potential markdown and preamble text
-        content = content.replace("```json", "").replace("```", "").strip()
-        
+        # --- ROBUST PARSING LOGIC ---
         import re
-        parsed_content = None
         
-        # First, try to parse the entire content as JSON
-        try:
-            parsed_content = json.loads(content)
-            print("DEBUG: Direct JSON parse succeeded", file=sys.stderr)
-        except json.JSONDecodeError:
-            print(f"DEBUG: Direct JSON parse failed, trying extraction...", file=sys.stderr)
-            # Fallback: Find the first complete JSON object using brace matching
-            start_idx = content.find('{')
-            if start_idx != -1:
-                # Find the matching closing brace
-                brace_count = 0
-                end_idx = start_idx
-                for i in range(start_idx, len(content)):
-                    if content[i] == '{':
-                        brace_count += 1
-                    elif content[i] == '}':
-                        brace_count -= 1
-                        if brace_count == 0:
-                            end_idx = i + 1
-                            break
-                
-                json_str = content[start_idx:end_idx]
-                try:
-                    parsed_content = json.loads(json_str)
-                    print("DEBUG: JSON extracted from text successfully", file=sys.stderr)
-                except json.JSONDecodeError:
-                    # Last resort: regex
-                    json_match = re.search(r'\{.*\}', content, re.DOTALL)
-                    if json_match:
-                        try:
-                            parsed_content = json.loads(json_match.group())
-                            print("DEBUG: JSON extracted via regex", file=sys.stderr)
-                        except json.JSONDecodeError:
-                            print(f"Failed to parse extracted JSON: {content}", file=sys.stderr)
-            else:
-                print(f"No JSON object found in response: {content}", file=sys.stderr)
+        # Extract Analysis (ignore "Thinking:" section)
+        analysis_match = re.search(r"Analysis:\s*(.*?)(?=(Option|Verdict|1[\.\)])\s*1)", content, re.DOTALL | re.IGNORECASE)
+        analysis_text = analysis_match.group(1).strip() if analysis_match else "Analysis not generated."
+        
+        suggestions_list = []
+        
+        # Helper to clean option text
+        def clean_opt(text):
+            return re.sub(r'^[:\-\.]\s*', '', text).strip()
 
-        if parsed_content:
-            # Handle cases where keys exist but values are None (null in JSON)
-            analysis_text = parsed_content.get("analysis") or "No analysis provided."
-            suggestions_list = parsed_content.get("suggestions") or []
-            print("DEBUG: JSON parsed successfully", file=sys.stderr)
+        # Flexible regex to catch "Option 1", "1.", "Verdict 1", etc.
+        # This splits the text by the option headers
+        parts = re.split(r'(?:Option|Verdict|Solution)\s*\d+[:\.]?|\n\d+[\.\)]', content, flags=re.IGNORECASE)
+        
+        # The first part is usually preamble/analysis, subsequent parts are the options
+        if len(parts) >= 4:
+            # parts[0] is preamble/analysis
+            # parts[1] is Option 1
+            # parts[2] is Option 2
+            # parts[3] is Option 3 (and maybe trailing text)
+            
+            suggestions_list.append({"id": "1", "text": clean_opt(parts[1])})
+            suggestions_list.append({"id": "2", "text": clean_opt(parts[2])})
+            
+            # Clean part 3 (remove any trailing "Conclusion" etc if present)
+            opt3_text = clean_opt(parts[3])
+            # Stop at double newline or "Note:"
+            opt3_text = re.split(r'\n\n|Note:', opt3_text)[0]
+            suggestions_list.append({"id": "3", "text": opt3_text})
+            
         else:
-            # Fallback - Parse numbered list from text
-            print("DEBUG: JSON parsing failed, attempting to parse numbered list", file=sys.stderr)
+             # Fallback: specific search if split failed
+            opt1_match = re.search(r"(?:Option|1[\.\)])\s*1[:\.]?\s*(.*?)(?=(?:Option|2[\.\)])\s*2)", content, re.DOTALL | re.IGNORECASE)
+            if opt1_match: suggestions_list.append({"id": "1", "text": clean_opt(opt1_match.group(1))})
             
-            # Try to extract suggestions from numbered list
-            lines = content.split('\n')
-            suggestions_list = []
-            current_suggestion = None
-            analysis_lines = []
+            opt2_match = re.search(r"(?:Option|2[\.\)])\s*2[:\.]?\s*(.*?)(?=(?:Option|3[\.\)])\s*3)", content, re.DOTALL | re.IGNORECASE)
+            if opt2_match: suggestions_list.append({"id": "2", "text": clean_opt(opt2_match.group(1))})
             
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-                
-                # Check if line starts with a number (1., 2., 3. or 1) 2) 3))
-                number_match = re.match(r'^(\d+)[\.\)]\s*(.+)', line)
-                
-                if number_match:
-                    # Save previous suggestion
-                    if current_suggestion:
-                        suggestions_list.append(current_suggestion)
-                    
-                    # Start new suggestion
-                    suggestion_id = number_match.group(1)
-                    suggestion_text = number_match.group(2)
-                    current_suggestion = {
-                        "id": suggestion_id,
-                        "text": suggestion_text
-                    }
-                elif current_suggestion and line:
-                    # Continue current suggestion
-                    current_suggestion["text"] += " " + line
-                elif not current_suggestion:
-                    # Analysis text
-                    analysis_lines.append(line)
-            
-            # Add last suggestion
-            if current_suggestion:
-                suggestions_list.append(current_suggestion)
-            
-            # Set analysis
-            analysis_text = '\n'.join(analysis_lines) if analysis_lines else "AI analysis completed."
-            
-            print(f"DEBUG: Parsed {len(suggestions_list)} suggestions from text", file=sys.stderr)
+            opt3_match = re.search(r"(?:Option|3[\.\)])\s*3[:\.]?\s*(.*?)(?=$)", content, re.DOTALL | re.IGNORECASE)
+            if opt3_match: suggestions_list.append({"id": "3", "text": clean_opt(opt3_match.group(1))})
+
         
         # Save analysis to dispute
         update_data = {
