@@ -257,7 +257,7 @@ const DisputeDetails = () => {
 
                         <Routes>
                             {/* Default route redirects to AI or Chat depending on preference. AI is usually the 'main' resolution tool if chat hasn't started or parallel. */}
-                            <Route index element={<Navigate to="ai" replace />} />
+                            <Route index element={<Navigate to="./ai" replace />} />
 
                             <Route
                                 path="chat"

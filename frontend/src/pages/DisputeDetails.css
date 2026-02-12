@@ -65,7 +65,7 @@
 /* Grid Layout */
 .details-grid {
     display: grid;
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: 350px 1fr;
     gap: var(--spacing-xl);
 }
 

@@ -4,6 +4,8 @@ No service account credentials needed for development
 """
 import os
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from dotenv import load_dotenv
@@ -12,6 +14,18 @@ load_dotenv()
 
 FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID", "major-5d82e")
 FIREBASE_API_KEY = os.getenv("FIREBASE_API_KEY", "AIzaSyAcXVkkN62tTlmQJCYQVeRfjPb2jltd8eQ")
+
+# Initialize global session with retry logic
+session = requests.Session()
+retry_strategy = Retry(
+    total=5,
+    backoff_factor=1,
+    status_forcelist=[429, 500, 502, 503, 504],
+    allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST"]
+)
+adapter = HTTPAdapter(max_retries=retry_strategy)
+session.mount("https://", adapter)
+session.mount("http://", adapter)
 
 class FirestoreClient:
     """Simple Firestore REST API client"""
@@ -41,7 +55,7 @@ class CollectionReference:
         # Convert Python types to Firestore types
         firestore_data = self._to_firestore_format(data)
         
-        response = requests.post(
+        response = session.post(
             self.url,
             json={"fields": firestore_data},
             params={"key": FIREBASE_API_KEY}
@@ -109,7 +123,7 @@ class Query:
         """Execute the query"""
         # For simplicity, get all documents and filter in Python
         url = f"{self.client.base_url}/{self.collection}"
-        response = requests.get(url, params={"key": FIREBASE_API_KEY})
+        response = session.get(url, params={"key": FIREBASE_API_KEY})
         
         if response.status_code == 200:
             data = response.json()
@@ -193,7 +207,7 @@ class DocumentReference:
         # Build update mask
         update_mask = "&".join([f"updateMask.fieldPaths={key}" for key in data.keys()])
         
-        response = requests.patch(
+        response = session.patch(
             f"{self.url}?{update_mask}",
             json={"fields": firestore_data},
             params={"key": FIREBASE_API_KEY}
@@ -203,7 +217,7 @@ class DocumentReference:
 
     def delete(self):
         """Delete document"""
-        response = requests.delete(
+        response = session.delete(
             self.url,
             params={"key": FIREBASE_API_KEY}
         )
@@ -211,7 +225,7 @@ class DocumentReference:
     
     def get(self):
         """Get document data"""
-        response = requests.get(self.url, params={"key": FIREBASE_API_KEY})
+        response = session.get(self.url, params={"key": FIREBASE_API_KEY})
         
         if response.status_code == 200:
             doc = response.json()
