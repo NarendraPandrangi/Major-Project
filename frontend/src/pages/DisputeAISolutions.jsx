@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
 import { Scale, CheckCircle, Sparkles, Clock, FileText, ShieldAlert } from 'lucide-react';
 import { aiAPI, disputeAPI } from '../api/client';
+import ESignatureModal from '../components/ESignatureModal';
 
 const DisputeAISolutions = ({ dispute, isPlaintiff, isDefendant, onRefresh }) => {
     const [analyzing, setAnalyzing] = useState(false);
     const [aiAnalysis, setAiAnalysis] = useState(dispute.ai_analysis || null);
+    const [showSignModal, setShowSignModal] = useState(false);
+    const [selectedResolution, setSelectedResolution] = useState(null);
+    const [signingInfo, setSigningInfo] = useState(null);
 
     // Sync local state with prop when it changes
     React.useEffect(() => {
@@ -30,15 +34,42 @@ const DisputeAISolutions = ({ dispute, isPlaintiff, isDefendant, onRefresh }) =>
         }
     };
 
-    const handleAgree = async (resolutionContent) => {
-        if (!window.confirm("Are you sure you want to accept this resolution proposal?")) return;
+    const openSignModalForResolution = async (resolutionContent) => {
+        if (!resolutionContent) return;
         try {
-            await disputeAPI.agree(dispute.id, resolutionContent);
-            if (onRefresh) await onRefresh();
+            const { data } = await disputeAPI.getSigningInfo(dispute.id);
+            setSigningInfo(data);
+            setSelectedResolution(resolutionContent);
+            setShowSignModal(true);
         } catch (err) {
-            console.error('Agreement Error:', err);
-            alert('Failed to register agreement.');
+            console.error('Signing info error', err);
+            const msg = err.response?.data?.detail || 'Failed to prepare agreement for signing.';
+            alert(msg);
         }
+    };
+
+    const handleSignatureSubmit = async ({ signature_type, typed_name, signature_image_data }) => {
+        if (!signingInfo) {
+            throw new Error('Missing signing metadata');
+        }
+
+        const party_role = signingInfo.is_plaintiff ? 'plaintiff' : (signingInfo.is_defendant ? 'defendant' : null);
+        if (!party_role) {
+            throw new Error('You are not authorized to sign this agreement');
+        }
+
+        const payload = {
+            party_role,
+            signature_type,
+            typed_name,
+            signature_image_data,
+            document_version: signingInfo.agreement_document_version,
+            document_hash: signingInfo.agreement_document_hash,
+            resolution_text: selectedResolution,
+        };
+
+        await disputeAPI.sign(dispute.id, payload);
+        if (onRefresh) await onRefresh();
     };
 
     const hasSuggestions = dispute.ai_suggestions && Array.isArray(dispute.ai_suggestions) && dispute.ai_suggestions.length > 0;
@@ -156,7 +187,7 @@ const DisputeAISolutions = ({ dispute, isPlaintiff, isDefendant, onRefresh }) =>
                                                 <button
                                                     className={`btn-${isSelected ? 'success' : 'primary'}-sm`}
                                                     style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                                                    onClick={() => handleAgree(suggestionText)}
+                                                    onClick={() => openSignModalForResolution(suggestionText)}
                                                     disabled={userAgreed}
                                                 >
                                                     {isSelected ? (
@@ -331,11 +362,17 @@ const DisputeAISolutions = ({ dispute, isPlaintiff, isDefendant, onRefresh }) =>
 
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '3rem' }}>
                                 <div style={{ textAlign: 'center' }}>
-                                    <div style={{ borderBottom: '1px solid black', width: '200px', marginBottom: '0.5rem', fontFamily: 'cursive', fontSize: '1.2rem' }}>{dispute.creator_email.split('@')[0]}</div>
+                                    <div style={{ borderBottom: '1px solid black', width: '200px', marginBottom: '0.5rem', fontFamily: 'cursive', fontSize: '1.2rem' }}>
+                                        {(dispute.signatures || []).find(s => s.party_role === 'plaintiff')?.typed_name ||
+                                            dispute.creator_email.split('@')[0]}
+                                    </div>
                                     <p style={{ fontSize: '0.875rem', color: '#666' }}>Plaintiff Signature (Digital)</p>
                                 </div>
                                 <div style={{ textAlign: 'center' }}>
-                                    <div style={{ borderBottom: '1px solid black', width: '200px', marginBottom: '0.5rem', fontFamily: 'cursive', fontSize: '1.2rem' }}>{dispute.defendant_email.split('@')[0]}</div>
+                                    <div style={{ borderBottom: '1px solid black', width: '200px', marginBottom: '0.5rem', fontFamily: 'cursive', fontSize: '1.2rem' }}>
+                                        {(dispute.signatures || []).find(s => s.party_role === 'defendant')?.typed_name ||
+                                            dispute.defendant_email.split('@')[0]}
+                                    </div>
                                     <p style={{ fontSize: '0.875rem', color: '#666' }}>Defendant Signature (Digital)</p>
                                 </div>
                             </div>
@@ -350,6 +387,13 @@ const DisputeAISolutions = ({ dispute, isPlaintiff, isDefendant, onRefresh }) =>
                     </div>
                 )
             }
+            {/* E-Signature Modal */}
+            <ESignatureModal
+                isOpen={showSignModal}
+                onClose={() => setShowSignModal(false)}
+                onSubmit={handleSignatureSubmit}
+                resolutionText={selectedResolution}
+            />
         </div >
     );
 };
