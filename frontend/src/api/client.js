@@ -65,7 +65,11 @@ export const disputesAPI = {
     delete: (id) => api.delete(`/api/disputes/${id}`),
     accept: (id) => api.post(`/api/disputes/${id}/accept`),
     reject: (id) => api.post(`/api/disputes/${id}/reject`),
+    // Legacy agree endpoint (kept for backward compatibility if needed)
     agree: (id, resolution_text) => api.post(`/api/disputes/${id}/agree`, { resolution_text }),
+    // E-signature specific endpoints
+    getSigningInfo: (id) => api.get(`/api/disputes/${id}/signing-info`),
+    sign: (id, payload) => api.post(`/api/disputes/${id}/sign`, payload),
     drop: (id, reason) => api.post(`/api/disputes/${id}/drop`, { reason }),
     escalate: (id, reason) => api.post(`/api/disputes/${id}/escalate`, { reason }),
     sendMessage: (id, content) => api.post(`/api/disputes/${id}/messages`, { content }),

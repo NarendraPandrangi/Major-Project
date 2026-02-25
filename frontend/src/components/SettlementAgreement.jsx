@@ -123,14 +123,20 @@ const SettlementAgreement = ({ dispute, onClose }) => {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4rem', marginTop: '2rem' }}>
                                 <div>
                                     <div style={{ borderBottom: '1px solid #000', height: '40px', marginBottom: '0.5rem', display: 'flex', alignItems: 'flex-end' }}>
-                                        <span style={{ fontFamily: 'Dancing Script, cursive', fontSize: '24px' }}>{dispute.creator_email.split('@')[0]}</span>
+                                        <span style={{ fontFamily: 'Dancing Script, cursive', fontSize: '24px' }}>
+                                            {(dispute.signatures || []).find(s => s.party_role === 'plaintiff')?.typed_name ||
+                                                dispute.creator_email.split('@')[0]}
+                                        </span>
                                     </div>
                                     <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>Signature of Plaintiff</p>
                                     <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>Date: {new Date(dispute.updated_at).toLocaleDateString()}</p>
                                 </div>
                                 <div>
                                     <div style={{ borderBottom: '1px solid #000', height: '40px', marginBottom: '0.5rem', display: 'flex', alignItems: 'flex-end' }}>
-                                        <span style={{ fontFamily: 'Dancing Script, cursive', fontSize: '24px' }}>{dispute.defendant_email.split('@')[0]}</span>
+                                        <span style={{ fontFamily: 'Dancing Script, cursive', fontSize: '24px' }}>
+                                            {(dispute.signatures || []).find(s => s.party_role === 'defendant')?.typed_name ||
+                                                dispute.defendant_email.split('@')[0]}
+                                        </span>
                                     </div>
                                     <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>Signature of Defendant</p>
                                     <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>Date: {new Date(dispute.updated_at).toLocaleDateString()}</p>

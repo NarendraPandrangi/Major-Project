@@ -80,19 +80,41 @@ async def get_suggestions(
         except Exception as e:
             print(f"Warning: Failed to process existing suggestions: {e}", file=sys.stderr)
 
+        # Build evidence context
+        evidence_text = dispute_data.get('evidence_text')
+        evidence_section = f"Evidence Summary: {evidence_text}" if evidence_text else "Evidence Summary: No formal evidence submitted — base your analysis on the dispute description and the conversation between the parties."
+
+        # Build chat context (truncate if too long to stay within token limits)
+        chat_section = ""
+        if chat_transcript and chat_transcript.strip():
+            # Limit chat transcript to ~2000 chars to avoid exceeding token limits
+            truncated_chat = chat_transcript[:2000]
+            if len(chat_transcript) > 2000:
+                truncated_chat += "\n... [earlier messages truncated]"
+            chat_section = f"""\nCONVERSATION BETWEEN PARTIES (use this to understand each party's position, demands, and concerns):\n{truncated_chat}"""
+        else:
+            chat_section = "\nCONVERSATION: No messages exchanged yet between the parties."
+
         prompt = f"""
         You are the Binding Arbitrator for this digital dispute resolution platform.
-        Value: {amount}.
+        Your job is to analyze ALL the information below — especially the conversation between the parties — and produce settlement options that directly address the specific issues in THIS dispute.
         
-        DISPUTE FACTS:
+        DISPUTE INFORMATION:
         Title: {dispute_data.get('title')}
-        Description: {dispute_data.get('description')}
-        Evidence Summary: {dispute_data.get('evidence_text') or "Standard evidence review"}
+        Category: {dispute_data.get('category', 'General Dispute')}
+        Disputed Amount/Value: {amount}
+        Plaintiff (filed by): {dispute_data.get('creator_email', 'Unknown')}
+        Defendant (against): {dispute_data.get('defendant_email', 'Unknown')}
         
+        DISPUTE DESCRIPTION (Plaintiff's account):
+        {dispute_data.get('description')}
+        
+        {evidence_section}
+        {chat_section}
         {avoid_suggestions_text}
 
         YOUR MANDATE:
-        Generate exactly 3 CONCRETE, FINAL settlement options.
+        Based on the specific facts, evidence, and conversation above, generate exactly 3 CONCRETE, FINAL settlement options. ALL 3 OPTIONS MUST BE STRONGLY AND DIRECTLY RELATED TO THIS SPECIFIC DISPUTE. Do NOT make any option generic or vague.
         
         CRITICAL RULES (VIOLATIONS WILL CAUSE SYSTEM FAILURE):
         1. YOU ARE THE FINAL AUTHORITY. DO NOT suggest "hiring a mediator", "professional mediator intervenes", "going to court", "consulting a lawyer", or "third party arbitration".
@@ -100,14 +122,17 @@ async def get_suggestions(
         3. If you suggest a split, specify the exact amounts (e.g. "Split 50/50: Plaintiff gets $X, Defendant keeps $Y").
         4. Options must be actionable SETTLEMENTS (e.g., "Party A pays Party B $X", "Party A completes work by Date Y", "Full refund processed").
         5. Do NOT provide vague advice like "communicate better". Give specific terms.
+        6. ALL 3 OPTIONS must mention the EXACT subject of the dispute by name (the specific product, service, contract, amount, or issue from the title/description). An option that could apply to any random dispute is UNACCEPTABLE.
+        7. Each option must be a DIFFERENT APPROACH to resolving the SAME specific dispute — for example: full resolution, partial resolution, and an alternative resolution (like replacement instead of refund). Do NOT make Option 2 or Option 3 less specific or less detailed than Option 1.
+        8. Every option must include specific numbers (dollar amounts, percentages, deadlines, quantities) drawn from the dispute facts. No option should be shorter than 15 words.
         
         REQUIRED OUTPUT FORMAT (Follow this structure exactly):
         
-        Analysis: [Provide a 2-3 sentence summary of the core conflict and why these options are fair. Do NOT use bullet points here.]
+        Analysis: [2-3 sentences summarizing the specific conflict. Name the product/service/issue. State what each party wants based on the description and conversation.]
         
-        Option 1: [Specific settlement term. e.g., "Full Refund of $500"]
-        Option 2: [Specific settlement term. e.g., "Partial Refund of $250 and keep the item"]
-        Option 3: [Specific settlement term. e.g., "Replacement unit shipped within 5 business days"]
+        Option 1: [FULL resolution — e.g., "Full Refund of $500 for the defective XYZ laptop, returned within 7 days"]
+        Option 2: [PARTIAL/COMPROMISE resolution — e.g., "Partial Refund of $250 for the XYZ laptop, buyer keeps the unit and seller covers repair costs"]
+        Option 3: [ALTERNATIVE resolution — e.g., "Seller replaces the defective XYZ laptop with a new unit within 10 business days, no cash refund"]
         """
         
         # 4. Call Kutrim API
@@ -129,11 +154,21 @@ async def get_suggestions(
         payload = {
             "model": "Krutrim-spectre-v2",
             "messages": [
-                {"role": "system", "content": "You are an automated binding arbitration algorithm. You output only concrete final settlement terms. You NEVER suggest external mediation."},
+                {"role": "system", "content": (
+                    "You are an expert AI dispute resolution arbitrator with deep knowledge of "
+                    "consumer rights, contract law, service agreements, and fair settlement practices. "
+                    "You carefully analyze the dispute facts, evidence, AND the conversation between "
+                    "both parties to understand each party's position, claims, and concerns. "
+                    "Your settlement options must directly address the specific issues raised in the "
+                    "dispute description and the parties' discussion — never give generic suggestions. "
+                    "Each option should reflect a different balance of fairness between the parties. "
+                    "You NEVER suggest external mediation, hiring lawyers, or going to court. "
+                    "You are the FINAL authority."
+                )},
                 {"role": "user", "content": prompt}
             ],
             "max_tokens": 1024,
-            "temperature": 0.7 
+            "temperature": 0.4
         }
         
         print(f"DEBUG: Sending request to Kutrim API... Prompt len: {len(prompt)}", file=sys.stderr)

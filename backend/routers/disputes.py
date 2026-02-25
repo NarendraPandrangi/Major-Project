@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Request
 from pydantic import BaseModel, validator
 from typing import Optional, List, Union, Any
 from datetime import datetime
+import hashlib
+import json
 import auth
 from database import get_firestore_db, Collections, FieldFilter
 from email_service import email_service
@@ -32,6 +34,10 @@ class Dispute(DisputeCreate):
     resolution_text: Optional[str] = None
     ai_analysis: Optional[str] = None
     ai_suggestions: Optional[Union[List[dict], str]] = None
+    # E-signature and agreement metadata
+    agreement_document_version: Optional[int] = None
+    agreement_document_hash: Optional[str] = None
+    signatures: Optional[Any] = None  # List of signature records (dicts)
     
     @validator("ai_suggestions", pre=True)
     def parse_suggestions(cls, v):
@@ -41,71 +47,240 @@ class Dispute(DisputeCreate):
             except:
                 return []
         return v
-# ... (Previous code remains same until accept_dispute)
+    
+
+def _compute_agreement_hash(dispute_id: str, data: dict) -> str:
+    """Compute a stable hash of the agreement content for e-signing.
+
+    The hash is based on core fields that define what is being agreed to,
+    not on timestamps or transient metadata.
+    """
+    core = {
+        "id": dispute_id or "",
+        "title": data.get("title") or "",
+        "description": data.get("description") or "",
+        "category": data.get("category") or "",
+        "resolution_text": data.get("resolution_text") or "",
+    }
+    canonical = json.dumps(core, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+class SigningInfoResponse(BaseModel):
+    dispute_id: str
+    agreement_document_version: int
+    agreement_document_hash: str
+    resolution_text: Optional[str] = None
+    plaintiff_signed: bool
+    defendant_signed: bool
+    is_plaintiff: bool
+    is_defendant: bool
+
+
+class SignatureRequest(BaseModel):
+    party_role: str  # "plaintiff" or "defendant"
+    signature_type: str  # "TYPED" or "DRAWN"
+    typed_name: Optional[str] = None
+    signature_image_data: Optional[str] = None  # base64 PNG if DRAWN
+    document_version: int
+    document_hash: str
+    resolution_text: Optional[str] = None
 
 class AgreeRequest(BaseModel):
     resolution_text: Optional[str] = None
 
-@router.post("/{dispute_id}/agree")
-async def agree_to_resolution(
-    dispute_id: str, 
-    agreement: AgreeRequest = Body(default=None),
+
+@router.get("/{dispute_id}/signing-info", response_model=SigningInfoResponse)
+async def get_signing_info(
+    dispute_id: str,
     current_user: dict = Depends(auth.get_current_user_firestore)
 ):
-    """User agrees to the resolution"""
+    """Return the current agreement hash/version and signing status for each party."""
     db = get_firestore_db()
     disputes_ref = db.collection(Collections.DISPUTES)
-    
+
     doc_ref = disputes_ref.document(dispute_id)
     doc = doc_ref.get()
-    
+
     if not doc or not doc.exists():
         raise HTTPException(status_code=404, detail="Dispute not found")
-        
+
     data = doc.to_dict()
-    
-    # Determine user role
+
+    # Authorization check
+    if data.get("user_id") != current_user["id"] and data.get("defendant_email") != current_user["email"]:
+        raise HTTPException(status_code=403, detail="Not a party to this dispute")
+
     is_plaintiff = data.get("user_id") == current_user["id"]
     is_defendant = data.get("defendant_email") == current_user["email"]
-    
+
+    existing_hash = data.get("agreement_document_hash")
+    existing_version = data.get("agreement_document_version")
+
+    # If no hash/version yet, initialize based on current content
+    if not existing_hash or not existing_version:
+        computed_hash = _compute_agreement_hash(dispute_id, data)
+        existing_hash = computed_hash
+        existing_version = 1
+        doc_ref.update({
+            "agreement_document_hash": existing_hash,
+            "agreement_document_version": existing_version,
+        })
+
+    signatures = data.get("signatures") or []
+    plaintiff_signed = any(s.get("party_role") == "plaintiff" for s in signatures)
+    defendant_signed = any(s.get("party_role") == "defendant" for s in signatures)
+
+    return SigningInfoResponse(
+        dispute_id=dispute_id,
+        agreement_document_version=int(existing_version),
+        agreement_document_hash=str(existing_hash),
+        resolution_text=data.get("resolution_text"),
+        plaintiff_signed=plaintiff_signed,
+        defendant_signed=defendant_signed,
+        is_plaintiff=is_plaintiff,
+        is_defendant=is_defendant,
+    )
+
+
+@router.post("/{dispute_id}/sign")
+async def sign_agreement(
+    dispute_id: str,
+    signature: SignatureRequest = Body(...),
+    request: Request = None,
+    current_user: dict = Depends(auth.get_current_user_firestore),
+):
+    """Create an e-signature for the current version of the agreement.
+
+    This endpoint replaces simple flag-based agreement and records a
+    detailed signature entry tied to a specific document hash/version.
+    """
+    db = get_firestore_db()
+    disputes_ref = db.collection(Collections.DISPUTES)
+
+    doc_ref = disputes_ref.document(dispute_id)
+    doc = doc_ref.get()
+
+    if not doc or not doc.exists():
+        raise HTTPException(status_code=404, detail="Dispute not found")
+
+    data = doc.to_dict()
+
+    is_plaintiff = data.get("user_id") == current_user["id"]
+    is_defendant = data.get("defendant_email") == current_user["email"]
+
     if not is_plaintiff and not is_defendant:
         raise HTTPException(status_code=403, detail="Not a party to this dispute")
-    
-    update_data = {
-        "updated_at": datetime.utcnow()
+
+    # Ensure party_role matches authenticated user
+    if signature.party_role == "plaintiff" and not is_plaintiff:
+        raise HTTPException(status_code=403, detail="Only the plaintiff can sign as plaintiff")
+    if signature.party_role == "defendant" and not is_defendant:
+        raise HTTPException(status_code=403, detail="Only the defendant can sign as defendant")
+
+    # Ensure there is a resolution text to sign
+    if signature.resolution_text:
+        data["resolution_text"] = signature.resolution_text
+    if not data.get("resolution_text"):
+        raise HTTPException(status_code=400, detail="No resolution text available to sign")
+
+    # Compute current hash and compare with client-provided one
+    current_hash = _compute_agreement_hash(dispute_id, data)
+    stored_hash = data.get("agreement_document_hash")
+    stored_version = data.get("agreement_document_version")
+
+    # Initialize hash/version if missing
+    if not stored_hash or not stored_version:
+        stored_hash = current_hash
+        stored_version = 1
+
+    # If content changed since last hash, bump version
+    if stored_hash != current_hash:
+        stored_version = int(stored_version) + 1
+        stored_hash = current_hash
+
+    # Persist any hash/version updates before validation
+    doc_ref.update({
+        "agreement_document_hash": stored_hash,
+        "agreement_document_version": stored_version,
+        "resolution_text": data.get("resolution_text"),
+    })
+
+    # Now enforce that client signed the same version/hash
+    if signature.document_hash != stored_hash or signature.document_version != int(stored_version):
+        raise HTTPException(
+            status_code=409,
+            detail="Agreement version has changed. Please refresh before signing.",
+        )
+
+    # Basic validation on signature type
+    sig_type = signature.signature_type.upper()
+    if sig_type not in {"TYPED", "DRAWN"}:
+        raise HTTPException(status_code=400, detail="Invalid signature type")
+    if sig_type == "TYPED" and not signature.typed_name:
+        raise HTTPException(status_code=400, detail="Typed name is required for typed signatures")
+    if sig_type == "DRAWN" and not signature.signature_image_data:
+        raise HTTPException(status_code=400, detail="Signature image data is required for drawn signatures")
+
+    signatures = data.get("signatures") or []
+
+    # Prevent duplicate signing for the same party and version
+    for s in signatures:
+        if s.get("party_role") == signature.party_role and s.get("version") == int(stored_version):
+            raise HTTPException(status_code=400, detail="This party has already signed this version of the agreement")
+
+    client_ip = None
+    user_agent = None
+    if request is not None and request.client:
+        client_ip = request.client.host
+        user_agent = request.headers.get("user-agent")
+
+    sig_record = {
+        "party_role": signature.party_role,
+        "user_id": current_user["id"],
+        "email": current_user["email"],
+        "signed_at": datetime.utcnow().isoformat(),
+        "signature_type": sig_type,
+        "typed_name": signature.typed_name,
+        "signature_image_data": signature.signature_image_data,
+        "document_hash": stored_hash,
+        "version": int(stored_version),
+        "ip_address": client_ip,
+        "user_agent": user_agent,
     }
-    
-    # If a specific text is agreed upon, update it
-    if agreement and agreement.resolution_text:
-        update_data["resolution_text"] = agreement.resolution_text
-    
-    if is_plaintiff:
+
+    signatures.append(sig_record)
+
+    update_data = {
+        "signatures": signatures,
+        "updated_at": datetime.utcnow(),
+    }
+
+    # Maintain legacy flags for compatibility
+    if signature.party_role == "plaintiff":
         update_data["plaintiff_agreed"] = True
         update_data["plaintiff_escalated"] = False
-    elif is_defendant:
+    elif signature.party_role == "defendant":
         update_data["defendant_agreed"] = True
         update_data["defendant_escalated"] = False
-        
+
     doc_ref.update(update_data)
-    
-    # Notify the OTHER party about the proposal
+
+    # Notify the other party similarly to the previous agree endpoint
     notifications_ref = db.collection(Collections.NOTIFICATIONS)
     users_ref = db.collection(Collections.USERS)
-    
-    if is_plaintiff and not data.get("defendant_agreed", False):
-        # Plaintiff Agreed -> Notify Defendant
+
+    if signature.party_role == "plaintiff" and not data.get("defendant_agreed", False):
         def_email = data.get("defendant_email")
         if def_email:
-            # 1. Send Email
             email_service.send_plaintiff_selected_option_notification(
                 to_email=def_email,
                 dispute_title=data.get("title"),
                 plaintiff_email=current_user["email"],
-                selected_option=agreement.resolution_text if agreement else "A resolution option",
-                dispute_id=dispute_id
+                selected_option=data.get("resolution_text"),
+                dispute_id=dispute_id,
             )
-            
-            # 2. In-App Notification (Need Defendant ID)
+
             def_docs = users_ref.where(filter=FieldFilter("email", "==", def_email)).limit(1).get()
             def_list = list(def_docs)
             if def_list:
@@ -117,14 +292,12 @@ async def agree_to_resolution(
                     "message": f"The plaintiff has proposed a resolution for '{data.get('title')}'. Please review.",
                     "link": f"/dispute/{dispute_id}",
                     "is_read": False,
-                    "created_at": datetime.utcnow()
+                    "created_at": datetime.utcnow(),
                 })
 
-    elif is_defendant and not data.get("plaintiff_agreed", False):
-        # Defendant Agreed -> Notify Plaintiff
+    if signature.party_role == "defendant" and not data.get("plaintiff_agreed", False):
         plaintiff_id = data.get("user_id")
         if plaintiff_id:
-             # 1. In-App Notification
             notifications_ref.add({
                 "user_id": plaintiff_id,
                 "type": "proposal_received",
@@ -132,57 +305,38 @@ async def agree_to_resolution(
                 "message": f"The defendant has proposed/accepted a resolution for '{data.get('title')}'. Please review.",
                 "link": f"/dispute/{dispute_id}",
                 "is_read": False,
-                "created_at": datetime.utcnow()
+                "created_at": datetime.utcnow(),
             })
-            
-            # 2. Send Email (Get Plaintiff Email)
-            p_email = data.get("creator_email")
-            if p_email:
-                 # Re-using the same method or a generic one? 
-                 # The user request specifically mentioned "if plantiff selected... email sent to defendant".
-                 # But good UX implies symmetry. I'll stick to the requested direction primarily but keeping symmetry is better.
-                 pass
 
+    # Determine final agreement status based on legacy flags and signatures
+    updated_doc = doc_ref.get().to_dict()
+    p_agreed = updated_doc.get("plaintiff_agreed", False)
+    d_agreed = updated_doc.get("defendant_agreed", False)
 
-    # Check if BOTH have agreed now
-    # Need to refetch or simulate
-    p_agreed = update_data.get("plaintiff_agreed", data.get("plaintiff_agreed", False))
-    d_agreed = update_data.get("defendant_agreed", data.get("defendant_agreed", False))
-    
-    # If resolution text changed, we might need to reset the other person's agreement?
-    # For now, let's assume they are coordinating. But ideally:
-    # if agreement.resolution_text != data.get("resolution_text"): disable other party agreement
-    # Implementing simplistic overwrite for now based on user request "reflects".
-    
-    
     if p_agreed and d_agreed:
-        # Both agreed -> Send to Admin for Approval
         final_update = {
             "status": "PendingApproval",
-            "pending_approval_since": datetime.utcnow().isoformat()
+            "pending_approval_since": datetime.utcnow().isoformat(),
         }
         doc_ref.update(final_update)
-        
-        # Notify admin (find all admin users)
+
         users_ref = db.collection(Collections.USERS)
         admin_docs = users_ref.where(filter=FieldFilter("role", "==", "admin")).get()
-        
-        notifications_ref = db.collection(Collections.NOTIFICATIONS)
+
         for admin_doc in admin_docs:
-            admin_data = admin_doc.to_dict()
             notifications_ref.add({
                 "user_id": admin_doc.id,
                 "type": "pending_approval",
                 "title": "New Resolution Pending Approval",
-                "message": f"Both parties have agreed to a resolution for '{data.get('title')}'. Please review and approve.",
+                "message": f"Both parties have signed a resolution for '{data.get('title')}'. Please review and approve.",
                 "link": f"/admin/approvals/{dispute_id}",
                 "is_read": False,
-                "created_at": datetime.utcnow()
+                "created_at": datetime.utcnow(),
             })
-        
-        return {"status": "success", "message": "Agreement recorded. Pending admin approval."}
-        
-    return {"status": "success", "message": "Agreement recorded"}
+
+        return {"status": "success", "message": "Signature recorded. Pending admin approval."}
+
+    return {"status": "success", "message": "Signature recorded"}
 
 class EscalateRequest(BaseModel):
     reason: Optional[str] = None
