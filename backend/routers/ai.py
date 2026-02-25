@@ -114,25 +114,26 @@ async def get_suggestions(
         {avoid_suggestions_text}
 
         YOUR MANDATE:
-        Based on the specific facts, evidence, and conversation above, generate exactly 3 CONCRETE, FINAL settlement options. ALL 3 OPTIONS MUST BE STRONGLY AND DIRECTLY RELATED TO THIS SPECIFIC DISPUTE. Do NOT make any option generic or vague.
+        Based on the specific facts, evidence, and conversation above, generate exactly 3 CONCRETE, FINAL settlement options. ALL 3 OPTIONS MUST BE STRONGLY AND DIRECTLY RELATED TO THIS SPECIFIC DISPUTE. 
         
         CRITICAL RULES (VIOLATIONS WILL CAUSE SYSTEM FAILURE):
-        1. YOU ARE THE FINAL AUTHORITY. DO NOT suggest "hiring a mediator", "professional mediator intervenes", "going to court", "consulting a lawyer", or "third party arbitration".
-        2. NEVER suggest a "process" (like "start mediation"). ONLY suggest "OUTCOMES" (like "Pay $500").
-        3. If you suggest a split, specify the exact amounts (e.g. "Split 50/50: Plaintiff gets $X, Defendant keeps $Y").
-        4. Options must be actionable SETTLEMENTS (e.g., "Party A pays Party B $X", "Party A completes work by Date Y", "Full refund processed").
-        5. Do NOT provide vague advice like "communicate better". Give specific terms.
-        6. ALL 3 OPTIONS must mention the EXACT subject of the dispute by name (the specific product, service, contract, amount, or issue from the title/description). An option that could apply to any random dispute is UNACCEPTABLE.
-        7. Each option must be a DIFFERENT APPROACH to resolving the SAME specific dispute — for example: full resolution, partial resolution, and an alternative resolution (like replacement instead of refund). Do NOT make Option 2 or Option 3 less specific or less detailed than Option 1.
-        8. Every option must include specific numbers (dollar amounts, percentages, deadlines, quantities) drawn from the dispute facts. No option should be shorter than 15 words.
+        1. YOU ARE THE FINAL AUTHORITY. DO NOT suggest "hiring a mediator", "professional mediator intervenes", "going to court", or "consulting a lawyer".
+        2. DO NOT use vague fallback phrases like "resolve the issue amicably", "reach a fair compromise", "communicate directly", or "appropriate compensation". Provide EXACT, measurable actions.
+        3. EVERY OPTION MUST BE A STANDALONE, COMPLETE RESOLUTION. Do NOT make Option 2 or Option 3 shorter or less detailed than Option 1.
+        4. YOU MUST fill in specific nouns (the actual item, service, or contract in dispute) and specific numbers (dollar amounts, days, percentages) in EVERY single option.
+        5. Option 1 must be a FULL resolution (e.g., 100% refund, full performance of duty).
+        6. Option 2 must be a PARTIAL resolution / COMPROMISE (e.g., 50% refund, partial repair, keep damaged item for discount).
+        7. Option 3 must be an ALTERNATIVE resolution (e.g., replacement instead of refund, timeline extension, credit instead of cash).
         
-        REQUIRED OUTPUT FORMAT (Follow this structure exactly):
+        REQUIRED OUTPUT FORMAT (Follow this rigid template exactly):
         
-        Analysis: [2-3 sentences summarizing the specific conflict. Name the product/service/issue. State what each party wants based on the description and conversation.]
+        Analysis: [2-3 sentences summarizing the specific conflict over [INSERT EXACT PRODUCT/ISSUE NAME]. State what the Plaintiff wants and what the Defendant is arguing.]
         
-        Option 1: [FULL resolution — e.g., "Full Refund of $500 for the defective XYZ laptop, returned within 7 days"]
-        Option 2: [PARTIAL/COMPROMISE resolution — e.g., "Partial Refund of $250 for the XYZ laptop, buyer keeps the unit and seller covers repair costs"]
-        Option 3: [ALTERNATIVE resolution — e.g., "Seller replaces the defective XYZ laptop with a new unit within 10 business days, no cash refund"]
+        Option 1: [FULL RESOLUTION] The Defendant shall provide a full refund of $[X] to the Plaintiff for the dispute regarding [INSERT EXACT PRODUCT/SERVICE NAME] within [Y] days. Upon successful payment, this dispute is fully resolved.
+        
+        Option 2: [COMPROMISE RESOLUTION] The Defendant shall provide a partial refund of $[X] (representing Y%) to the Plaintiff. The Plaintiff agrees to accept [INSERT EXACT PRODUCT/SERVICE NAME] in its current state, and the Defendant is relieved of further obligations regarding the [SPECIFIC ISSUE].
+        
+        Option 3: [ALTERNATIVE RESOLUTION] Instead of a cash refund, the Defendant shall [INSERT SPECIFIC ACTION: e.g., ship a replacement unit, perform the service again, issue store credit] for the [INSERT EXACT PRODUCT/SERVICE NAME] within [X] days. The Plaintiff agrees to accept this alternative in full satisfaction of their claim.
         """
         
         # 4. Call Kutrim API

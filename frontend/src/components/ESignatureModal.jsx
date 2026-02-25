@@ -10,8 +10,6 @@ import React, { useRef, useState } from 'react';
  * - resolutionText: string (read-only agreement text preview)
  */
 const ESignatureModal = ({ isOpen, onClose, onSubmit, resolutionText }) => {
-    const [mode, setMode] = useState('typed');
-    const [typedName, setTypedName] = useState('');
     const canvasRef = useRef(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -56,29 +54,28 @@ const ESignatureModal = ({ isOpen, onClose, onSubmit, resolutionText }) => {
         if (submitting) return;
         setSubmitting(true);
         try {
-            if (mode === 'typed') {
-                if (!typedName.trim()) {
-                    alert('Please enter your full name to sign.');
-                    return;
-                }
-                await onSubmit({
-                    signature_type: 'TYPED',
-                    typed_name: typedName.trim(),
-                    signature_image_data: null,
-                });
-            } else {
-                const canvas = canvasRef.current;
-                if (!canvas) {
-                    alert('Signature area not available.');
-                    return;
-                }
-                const dataUrl = canvas.toDataURL('image/png');
-                await onSubmit({
-                    signature_type: 'DRAWN',
-                    typed_name: null,
-                    signature_image_data: dataUrl,
-                });
+            const canvas = canvasRef.current;
+            if (!canvas) {
+                alert('Signature area not available.');
+                return;
             }
+
+            // Basic validation to check if canvas is empty
+            const ctx = canvas.getContext('2d');
+            const pixelBuffer = new Uint32Array(ctx.getImageData(0, 0, canvas.width, canvas.height).data.buffer);
+            // In a blank canvas, all pixels are 0 (transparent)
+            if (!pixelBuffer.some(color => color !== 0)) {
+                alert('Please draw your signature before submitting.');
+                setSubmitting(false);
+                return;
+            }
+
+            const dataUrl = canvas.toDataURL('image/png');
+            await onSubmit({
+                signature_type: 'DRAWN',
+                typed_name: null,
+                signature_image_data: dataUrl,
+            });
             onClose();
         } catch (err) {
             console.error('Signature submit error', err);
@@ -137,87 +134,69 @@ const ESignatureModal = ({ isOpen, onClose, onSubmit, resolutionText }) => {
 
                 <div style={{ marginBottom: '1rem' }}>
                     <p style={{ fontSize: '0.9rem', color: '#4b5563' }}>
-                        By providing your electronic signature below, you confirm that you have read and agree to the
+                        By drawing your electronic signature below, you confirm that you have read and agree to the
                         terms of this resolution. This e-signature has the same legal effect as a handwritten signature.
                     </p>
                 </div>
 
-                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                    <button
-                        type="button"
-                        className={mode === 'typed' ? 'btn-primary' : 'btn-secondary'}
-                        onClick={() => setMode('typed')}
+                <div>
+                    <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.5rem', fontWeight: '500' }}>
+                        Draw your signature below:
+                    </label>
+                    <div
+                        style={{
+                            border: '1px solid #9ca3af',
+                            borderRadius: '6px',
+                            padding: '0.5rem',
+                            marginBottom: '0.5rem',
+                            background: '#f9fafb',
+                        }}
                     >
-                        Type Signature
-                    </button>
-                    <button
-                        type="button"
-                        className={mode === 'drawn' ? 'btn-primary' : 'btn-secondary'}
-                        onClick={() => setMode('drawn')}
-                    >
-                        Draw Signature
-                    </button>
-                </div>
-
-                {mode === 'typed' ? (
-                    <div>
-                        <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.25rem' }}>
-                            Full Legal Name
-                        </label>
-                        <input
-                            type="text"
-                            value={typedName}
-                            onChange={(e) => setTypedName(e.target.value)}
-                            placeholder="Enter your full name"
+                        <canvas
+                            ref={canvasRef}
+                            width={600}
+                            height={200}
                             style={{
                                 width: '100%',
-                                padding: '0.5rem 0.75rem',
-                                borderRadius: '6px',
-                                border: '1px solid #d1d5db',
-                                marginBottom: '0.75rem',
+                                height: '200px',
+                                cursor: 'crosshair',
+                                touchAction: 'none' // Prevents scrolling while signing on mobile
+                            }}
+                            onMouseDown={startDrawing}
+                            onMouseMove={draw}
+                            onMouseUp={endDrawing}
+                            onMouseLeave={endDrawing}
+
+                            // Touch support
+                            onTouchStart={(e) => {
+                                e.preventDefault();
+                                const touch = e.touches[0];
+                                const mouseEvent = new MouseEvent("mousedown", {
+                                    clientX: touch.clientX,
+                                    clientY: touch.clientY
+                                });
+                                canvasRef.current.dispatchEvent(mouseEvent);
+                            }}
+                            onTouchMove={(e) => {
+                                e.preventDefault();
+                                const touch = e.touches[0];
+                                const mouseEvent = new MouseEvent("mousemove", {
+                                    clientX: touch.clientX,
+                                    clientY: touch.clientY
+                                });
+                                canvasRef.current.dispatchEvent(mouseEvent);
+                            }}
+                            onTouchEnd={(e) => {
+                                e.preventDefault();
+                                const mouseEvent = new MouseEvent("mouseup");
+                                canvasRef.current.dispatchEvent(mouseEvent);
                             }}
                         />
-                        <div
-                            style={{
-                                border: '1px solid #9ca3af',
-                                borderRadius: '6px',
-                                padding: '0.75rem 1rem',
-                                fontFamily: 'Dancing Script, cursive',
-                                fontSize: '1.5rem',
-                                minHeight: '60px',
-                                display: 'flex',
-                                alignItems: 'center',
-                            }}
-                        >
-                            {typedName || 'Your signature preview'}
-                        </div>
                     </div>
-                ) : (
-                    <div>
-                        <div
-                            style={{
-                                border: '1px solid #9ca3af',
-                                borderRadius: '6px',
-                                padding: '0.5rem',
-                                marginBottom: '0.5rem',
-                            }}
-                        >
-                            <canvas
-                                ref={canvasRef}
-                                width={600}
-                                height={200}
-                                style={{ width: '100%', height: '200px', cursor: 'crosshair' }}
-                                onMouseDown={startDrawing}
-                                onMouseMove={draw}
-                                onMouseUp={endDrawing}
-                                onMouseLeave={endDrawing}
-                            />
-                        </div>
-                        <button type="button" className="btn-secondary" onClick={clearCanvas}>
-                            Clear Signature
-                        </button>
-                    </div>
-                )}
+                    <button type="button" className="btn-secondary" onClick={clearCanvas} style={{ fontSize: '0.8rem', padding: '0.25rem 0.75rem' }}>
+                        Clear Signature
+                    </button>
+                </div>
 
                 <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
                     <button type="button" className="btn-secondary" onClick={onClose} disabled={submitting}>
