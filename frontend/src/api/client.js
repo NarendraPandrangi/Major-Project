@@ -66,6 +66,7 @@ export const disputesAPI = {
     accept: (id) => api.post(`/api/disputes/${id}/accept`),
     reject: (id) => api.post(`/api/disputes/${id}/reject`),
     agree: (id, resolution_text) => api.post(`/api/disputes/${id}/agree`, { resolution_text }),
+    drop: (id, reason) => api.post(`/api/disputes/${id}/drop`, { reason }),
     escalate: (id, reason) => api.post(`/api/disputes/${id}/escalate`, { reason }),
     sendMessage: (id, content) => api.post(`/api/disputes/${id}/messages`, { content }),
     getMessages: (id) => api.get(`/api/disputes/${id}/messages`),
@@ -105,11 +106,7 @@ export const adminAPI = {
     getStats: () => api.get('/api/admin/stats'),
     getAllDisputes: () => api.get('/api/admin/all-disputes'),
     getAllUsers: () => api.get('/api/admin/all-users'),
-    getEscalatedDisputes: () => api.get('/api/admin/escalated-disputes'),
-    resolveEscalation: (disputeId, resolutionText, adminNotes) => api.post(`/api/admin/${disputeId}/resolve-escalation`, {
-        resolution_text: resolutionText,
-        admin_notes: adminNotes
-    }),
+    getDroppedDisputes: () => api.get('/api/admin/dropped-disputes'),
 };
 
 export default api;

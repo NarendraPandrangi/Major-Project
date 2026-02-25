@@ -396,6 +396,43 @@ class EmailService:
         """
         return self.send_email(to_email, subject, html_content)
 
+    def send_dispute_dropped_notification(self, to_email: str, dispute_title: str, dropped_by: str, dispute_id: str):
+        """Send notification when a dispute is dropped"""
+        subject = f"Dispute Dropped - {dispute_title}"
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #6b7280, #374151); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+                .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
+                .button {{ display: inline-block; padding: 12px 24px; background: #6b7280; color: white; text-decoration: none; border-radius: 6px; margin-top: 20px; }}
+                .footer {{ text-align: center; margin-top: 20px; color: #6b7280; font-size: 14px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>🛑 Dispute Dropped</h1>
+                </div>
+                <div class="content">
+                    <h2>Dispute Withdrawn/Dropped</h2>
+                    <p>Hello,</p>
+                    <p>The dispute <strong>{dispute_title}</strong> has been dropped by {dropped_by}.</p>
+                    <p>No further action is required from your side regarding this dispute.</p>
+                    <a href="http://localhost:5173/dispute/{dispute_id}" class="button">View Dispute Status</a>
+                </div>
+                <div class="footer">
+                    <p>This is an automated message from {self.app_name}. Please do not reply to this email.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        return self.send_email(to_email, subject, html_content)
+
 # Singleton instance
 email_service = EmailService()
 

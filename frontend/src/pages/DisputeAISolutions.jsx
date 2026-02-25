@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Scale, CheckCircle, Sparkles, Clock, FileText, ShieldAlert } from 'lucide-react';
+import { Scale, CheckCircle, Sparkles, Clock, FileText, ShieldAlert, XCircle } from 'lucide-react';
 import { aiAPI, disputeAPI } from '../api/client';
 
 const DisputeAISolutions = ({ dispute, isPlaintiff, isDefendant, onRefresh }) => {
@@ -181,44 +181,38 @@ const DisputeAISolutions = ({ dispute, isPlaintiff, isDefendant, onRefresh }) =>
                             {analyzing ? 'Regenerating...' : 'Regenerate Analysis'}
                         </button>
 
-                        {/* Escalation Section */}
+                        {/* Drop Case Section */}
                         <div style={{ marginTop: '2rem', paddingTop: '2rem', borderTop: '1px solid var(--border-color)' }}>
                             <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Not satisfied with these options?</h4>
                             <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>
-                                If you cannot agree on a resolution based on the AI suggestions, you can request to escalate this dispute to a human mediator.
+                                If you cannot agree on a resolution based on the AI suggestions, you have the option to drop the case.
                             </p>
 
-                            {(isPlaintiff ? dispute.plaintiff_escalated : dispute.defendant_escalated) ? (
-                                <div style={{ padding: '1rem', background: '#fff0f0', border: '1px solid #ffcaca', color: '#d32f2f', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <ShieldAlert size={20} />
-                                    <span>You have requested escalation. Waiting for the other party's response.</span>
-                                </div>
-                            ) : (
-                                <button
-                                    onClick={async () => {
-                                        if (!window.confirm("Are you sure you want to reject all options and request escalation? If the other party also rejects, this will be sent to an admin.")) return;
-                                        try {
-                                            await disputeAPI.escalate(dispute.id);
-                                            if (onRefresh) await onRefresh();
-                                        } catch (err) {
-                                            console.error('Escalation Error:', err);
-                                            alert('Failed to request escalation.');
-                                        }
-                                    }}
-                                    className="btn-danger"
-                                    style={{
-                                        background: 'transparent',
-                                        color: '#d32f2f',
-                                        border: '1px solid #d32f2f',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.5rem'
-                                    }}
-                                >
-                                    <ShieldAlert size={18} />
-                                    Reject Options & Request Escalation
-                                </button>
-                            )}
+                            <button
+                                onClick={async () => {
+                                    if (!window.confirm("Are you sure you want to drop this case? This action cannot be undone.")) return;
+                                    const reason = prompt("Please provide a reason for dropping the case (optional):");
+                                    try {
+                                        await disputeAPI.drop(dispute.id, reason);
+                                        if (onRefresh) await onRefresh();
+                                    } catch (err) {
+                                        console.error('Drop Error:', err);
+                                        alert('Failed to drop the case.');
+                                    }
+                                }}
+                                className="btn-danger"
+                                style={{
+                                    background: 'transparent',
+                                    color: '#6b7280',
+                                    border: '1px solid #6b7280',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem'
+                                }}
+                            >
+                                <XCircle size={18} />
+                                Drop Case
+                            </button>
                         </div>
                     </div>
                 ) : (

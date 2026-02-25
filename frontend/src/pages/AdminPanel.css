@@ -1,3 +1,4 @@
+/* Admin Panel Styles */
 .admin-panel-container {
     min-height: 100vh;
     background: var(--background);
@@ -224,6 +225,27 @@
 .detail-row .value {
     color: var(--text-primary);
     font-weight: 600;
+    word-break: break-word;
+    /* Ensure it wraps */
+    overflow-wrap: anywhere;
+}
+
+/* Alert Box */
+.alert-box {
+    background: var(--surface);
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+}
+
+.alert-box svg {
+    flex-shrink: 0;
+    margin-top: 2px;
 }
 
 .resolution-section {
@@ -441,6 +463,12 @@
 .status-Rejected {
     background: var(--error-100);
     color: var(--error-700);
+}
+
+.status-Dropped {
+    background: var(--surface);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
 }
 
 /* Role Badges */

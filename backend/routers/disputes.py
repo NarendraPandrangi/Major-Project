@@ -294,6 +294,99 @@ async def escalate_dispute(
         
         return {"status": "success", "message": "Escalation request recorded. Waiting for other party."}
 
+class DropRequest(BaseModel):
+    reason: Optional[str] = None
+
+@router.post("/{dispute_id}/drop")
+async def drop_dispute(
+    dispute_id: str, 
+    request: DropRequest = Body(default=None),
+    current_user: dict = Depends(auth.get_current_user_firestore)
+):
+    """
+    Party drops/withdraws from the dispute.
+    Status becomes 'Dropped'.
+    """
+    db = get_firestore_db()
+    disputes_ref = db.collection(Collections.DISPUTES)
+    
+    doc_ref = disputes_ref.document(dispute_id)
+    doc = doc_ref.get()
+    
+    if not doc or not doc.exists():
+        raise HTTPException(status_code=404, detail="Dispute not found")
+        
+    data = doc.to_dict()
+    
+    # Determine role
+    is_plaintiff = data.get("user_id") == current_user["id"]
+    is_defendant = data.get("defendant_email") == current_user["email"]
+    
+    if not is_plaintiff and not is_defendant:
+        raise HTTPException(status_code=403, detail="Not a party to this dispute")
+        
+    update_data = {
+        "status": "Dropped",
+        "dropped_by": current_user["email"],
+        "drop_reason": request.reason if request else None,
+        "dropped_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow()
+    }
+    
+    doc_ref.update(update_data)
+    
+    # Notify other party and Admin
+    notifications_ref = db.collection(Collections.NOTIFICATIONS)
+    users_ref = db.collection(Collections.USERS)
+    
+    # Notify Admin
+    admin_docs = users_ref.where(filter=FieldFilter("role", "==", "admin")).get()
+    for admin_doc in admin_docs:
+        notifications_ref.add({
+            "user_id": admin_doc.id,
+            "type": "dispute_dropped",
+            "title": "Dispute Dropped",
+            "message": f"The dispute '{data.get('title')}' has been dropped by {current_user['email']}.",
+            "link": f"/admin/disputes/{dispute_id}", # Or just view details
+            "is_read": False,
+            "created_at": datetime.utcnow()
+        })
+        
+    # Notify Other Party
+    other_party_email = None
+    if is_plaintiff:
+        other_party_email = data.get("defendant_email")
+    elif is_defendant:
+         # Need plaintiff email
+         p_doc = users_ref.document(data.get("user_id")).get()
+         if p_doc.exists:
+             other_party_email = p_doc.to_dict().get("email")
+             
+    if other_party_email:
+        # Find user id for in-app notification
+        op_docs = users_ref.where(filter=FieldFilter("email", "==", other_party_email)).limit(1).get()
+        if list(op_docs):
+            op_id = list(op_docs)[0].id
+            notifications_ref.add({
+                "user_id": op_id,
+                "type": "dispute_dropped",
+                "title": "Dispute Dropped",
+                "message": f"The other party has dropped/withdrawn from the dispute '{data.get('title')}'.",
+                "link": f"/dispute/{dispute_id}",
+                "is_read": False,
+                "created_at": datetime.utcnow()
+            })
+            
+        # Send Email
+        email_service.send_dispute_dropped_notification(
+            to_email=other_party_email,
+            dispute_title=data.get("title"),
+            dropped_by=current_user["email"],
+            dispute_id=dispute_id
+        )
+
+    return {"status": "success", "message": "Dispute dropped successfully."}
+
 # ... (Existing message endpoints)
 
 @router.post("/", response_model=Dispute)
