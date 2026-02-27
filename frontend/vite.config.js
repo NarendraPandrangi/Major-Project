@@ -12,4 +12,21 @@ export default defineConfig({
             }
         }
     }
+    ,
+    build: {
+        // Increase warning threshold (kB) and split vendor code to avoid very large chunks
+        chunkSizeWarningLimit: 700,
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    if (id.includes('node_modules')) {
+                        if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+                            return 'vendor_react';
+                        }
+                        return 'vendor';
+                    }
+                }
+            }
+        }
+    }
 })
