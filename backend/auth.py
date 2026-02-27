@@ -4,7 +4,7 @@ from jose import JWTError, jwt
 import hashlib
 import os
 import secrets
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, APIRouter
 from fastapi.security import OAuth2PasswordBearer
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
@@ -176,3 +176,14 @@ async def verify_google_token(token: str) -> dict:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid token: {str(e)}"
         )
+
+router = APIRouter()
+
+@router.post("/api/auth/login/email")
+async def email_login(email: str):
+    # Example implementation for email login
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+
+    # Example response (replace with actual logic)
+    return {"message": "Login successful", "email": email}
