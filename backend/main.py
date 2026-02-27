@@ -13,7 +13,11 @@ app = FastAPI(title="AI Dispute Resolver API")
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:3000", 
+        "http://localhost:5173", 
+        "https://major-project-six-beta.vercel.app"  # Add deployed frontend domain
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
