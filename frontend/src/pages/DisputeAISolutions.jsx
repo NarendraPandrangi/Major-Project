@@ -167,9 +167,10 @@ const DisputeAISolutions = ({ dispute, isPlaintiff, isDefendant, onRefresh }) =>
                                         // Determine if this user has already agreed
                                         const userAgreed = isPlaintiff ? dispute.plaintiff_agreed : (isDefendant ? dispute.defendant_agreed : false);
 
-                                        // Check if this specific option is the one agreed to
+                                        // Check if this specific option is the one agreed to by the current user
+                                        // Only the user who agreed should see their selected option as "Selected".
                                         // Note: This relies on exact text match. If resolution_text is modified, this might not match.
-                                        const isSelected = dispute.resolution_text === suggestionText;
+                                        const isSelected = (dispute.resolution_text === suggestionText) && userAgreed;
 
                                         return (
                                             <div key={idx} style={{

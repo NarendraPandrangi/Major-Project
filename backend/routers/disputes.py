@@ -179,12 +179,17 @@ async def sign_agreement(
         raise HTTPException(status_code=403, detail="Only the defendant can sign as defendant")
 
     # Ensure there is a resolution text to sign
-    if signature.resolution_text:
-        data["resolution_text"] = signature.resolution_text
-    if not data.get("resolution_text"):
-        raise HTTPException(status_code=400, detail="No resolution text available to sign")
+    existing_resolution = data.get("resolution_text")
+    provided_resolution = signature.resolution_text
+    if provided_resolution:
+        # We'll compute the hash for the "new" content (if client provided it)
+        data_with_provided = dict(data)
+        data_with_provided["resolution_text"] = provided_resolution
+        new_hash = _compute_agreement_hash(dispute_id, data_with_provided)
+    else:
+        new_hash = None
 
-    # Compute current hash and compare with client-provided one
+    # Compute current hash based on stored content
     current_hash = _compute_agreement_hash(dispute_id, data)
     stored_hash = data.get("agreement_document_hash")
     stored_version = data.get("agreement_document_version")
@@ -194,24 +199,42 @@ async def sign_agreement(
         stored_hash = current_hash
         stored_version = 1
 
-    # If content changed since last hash, bump version
-    if stored_hash != current_hash:
-        stored_version = int(stored_version) + 1
-        stored_hash = current_hash
+    # Determine what the server will consider the "final" hash/version
+    # If client provided a different resolution text, that will create a new
+    # hash/version compared with the stored values.
+    if new_hash and new_hash != stored_hash:
+        final_hash = new_hash
+        final_version = int(stored_version) + 1
+    else:
+        final_hash = stored_hash
+        final_version = int(stored_version)
 
-    # Persist any hash/version updates before validation
-    doc_ref.update({
-        "agreement_document_hash": stored_hash,
-        "agreement_document_version": stored_version,
-        "resolution_text": data.get("resolution_text"),
-    })
+    # Validate the client-provided document hash/version against either the
+    # existing stored values or the new values computed from the provided
+    # resolution text. This makes the endpoint tolerant when the client
+    # submits an updated resolution_text together with the signature.
+    client_hash = signature.document_hash
+    client_version = int(signature.document_version)
 
-    # Now enforce that client signed the same version/hash
-    if signature.document_hash != stored_hash or signature.document_version != int(stored_version):
+    allowed_hashes = {stored_hash}
+    allowed_versions = {int(stored_version)}
+    if new_hash:
+        allowed_hashes.add(new_hash)
+        allowed_versions.add(final_version)
+
+    if client_hash not in allowed_hashes or client_version not in allowed_versions:
         raise HTTPException(
             status_code=409,
             detail="Agreement version has changed. Please refresh before signing.",
         )
+
+    # Persist the final hash/version and resolution_text (if provided)
+    update_payload = {
+        "agreement_document_hash": final_hash,
+        "agreement_document_version": final_version,
+        "resolution_text": provided_resolution if provided_resolution is not None else existing_resolution,
+    }
+    doc_ref.update(update_payload)
 
     # Basic validation on signature type
     sig_type = signature.signature_type.upper()
