@@ -357,16 +357,26 @@ const DisputeAISolutions = ({ dispute, isPlaintiff, isDefendant, onRefresh }) =>
 
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '3rem' }}>
                                 <div style={{ textAlign: 'center' }}>
-                                    <div style={{ borderBottom: '1px solid black', width: '200px', marginBottom: '0.5rem', fontFamily: 'cursive', fontSize: '1.2rem' }}>
-                                        {(dispute.signatures || []).find(s => s.party_role === 'plaintiff')?.typed_name ||
-                                            dispute.creator_email.split('@')[0]}
+                                    <div style={{ width: '200px', height: '80px', margin: '0 auto 0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        {(() => {
+                                            const p = (dispute.signatures || []).find(s => s.party_role === 'plaintiff');
+                                            if (p && p.signature_image_data) {
+                                                return <img src={p.signature_image_data} alt="Plaintiff signature" style={{ maxHeight: '70px', objectFit: 'contain' }} />;
+                                            }
+                                            return <div style={{ borderBottom: '1px solid black', width: '100%', fontFamily: 'cursive', fontSize: '1.2rem' }}>{p?.typed_name || dispute.creator_email.split('@')[0]}</div>;
+                                        })()}
                                     </div>
                                     <p style={{ fontSize: '0.875rem', color: '#666' }}>Plaintiff Signature (Digital)</p>
                                 </div>
                                 <div style={{ textAlign: 'center' }}>
-                                    <div style={{ borderBottom: '1px solid black', width: '200px', marginBottom: '0.5rem', fontFamily: 'cursive', fontSize: '1.2rem' }}>
-                                        {(dispute.signatures || []).find(s => s.party_role === 'defendant')?.typed_name ||
-                                            dispute.defendant_email.split('@')[0]}
+                                    <div style={{ width: '200px', height: '80px', margin: '0 auto 0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        {(() => {
+                                            const d = (dispute.signatures || []).find(s => s.party_role === 'defendant');
+                                            if (d && d.signature_image_data) {
+                                                return <img src={d.signature_image_data} alt="Defendant signature" style={{ maxHeight: '70px', objectFit: 'contain' }} />;
+                                            }
+                                            return <div style={{ borderBottom: '1px solid black', width: '100%', fontFamily: 'cursive', fontSize: '1.2rem' }}>{d?.typed_name || dispute.defendant_email.split('@')[0]}</div>;
+                                        })()}
                                     </div>
                                     <p style={{ fontSize: '0.875rem', color: '#666' }}>Defendant Signature (Digital)</p>
                                 </div>
