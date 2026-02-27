@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://your-backend-url.com'; // Update default to deployed backend URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://major-project-six-beta.vercel.app/'; // Update default to deployed backend URL
 
 const api = axios.create({
     baseURL: API_BASE_URL,
