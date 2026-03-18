@@ -38,7 +38,7 @@ The **AI Dispute Resolver** is a full-stack digital dispute management and resol
 The system addresses delays and subjectivity in manual dispute handling by digitizing the end-to-end process: dispute filing, conversation capture, AI-assisted negotiation options, escalation to administrative review, and closure through approved resolution. The backend is implemented in **FastAPI (Python)** and uses a custom **Firestore REST client** for persistence. The frontend is implemented in **React + Vite**, with modular pages and components for users and administrators.
 
 Key technology integrations include:
-- **Machine intelligence:** Kutrim LLM API (`Krutrim-spectre-v2`) for generating structured settlement options.
+- **Machine intelligence:** Krutrim LLM API (`Krutrim-spectre-v2`) for generating structured settlement options.
 - **Cloud identity:** Firebase/Google token verification and JWT-based API authorization.
 - **Automation:** Email workflows (welcome, dispute updates, acceptance/rejection, admin decisions) via frontend EmailJS and backend SMTP support.
 - **Evidence intelligence:** OCR extraction using **Tesseract.js** to convert uploaded evidence into analyzable text.
@@ -193,7 +193,7 @@ The project aligns with current ODR and AI-assist practices:
 
 **External integrations:**
 - Firebase Authentication / Google OAuth
-- Kutrim Cloud LLM API
+- Krutrim Cloud LLM API
 - EmailJS and/or SMTP mail provider
 
 ---
@@ -265,7 +265,7 @@ flowchart LR
     U[End Users / Admin] --> F[React Frontend (Vite)]
     F --> A[FastAPI Backend]
     A --> D[Firestore REST API]
-    A --> K[Kutrim LLM API]
+    A --> K[Krutrim LLM API]
     F --> E[EmailJS]
     A --> S[SMTP Email Service]
     F --> O[Tesseract.js OCR]
@@ -311,7 +311,7 @@ This project does not ship with a static ML training dataset. Instead, it operat
 2. **Dispute Inputs:** title, category, description, defendant email, optional evidence file.
 3. **Message Inputs:** negotiation chat messages between parties.
 4. **Evidence-Derived Input:** OCR-extracted text (`evidence_text`) using Tesseract.js.
-5. **AI Context Inputs:** dispute details + evidence summary + chat transcript passed to Kutrim LLM.
+5. **AI Context Inputs:** dispute details + evidence summary + chat transcript passed to Krutrim LLM.
 6. **Admin Inputs:** approval decision (`approve`/`reject`) and optional notes.
 
 ## 4.2 Code Explanation
@@ -534,7 +534,7 @@ This project does not ship with a static ML training dataset. Instead, it operat
 ### Existing Testing Style in Repository
 - **Manual/Debug Script Testing (Backend):**
   - `test_auth_flow.py` for registration/login path checking.
-  - `test_ai_connection.py` for Kutrim API connectivity validation.
+  - `test_ai_connection.py` for Krutrim API connectivity validation.
   - `debug_login.py` for interactive troubleshooting.
 - **Build Validation (Frontend):**
   - `npm run build` used as compile-time and bundling integrity check.
@@ -611,7 +611,7 @@ In practical terms, the system achieves a functioning digital ODR pipeline from 
 10. Pydantic — https://docs.pydantic.dev/
 
 ## 7.2 External Services
-1. Kutrim Cloud API (`Krutrim-spectre-v2`) — service usage inferred from backend AI router.
+1. Krutrim Cloud API (`Krutrim-spectre-v2`) — service usage inferred from backend AI router.
 2. EmailJS — https://www.emailjs.com/
 3. Google OAuth / Firebase Auth infrastructure.
 
@@ -630,7 +630,7 @@ In practical terms, the system achieves a functioning digital ODR pipeline from 
 | Backend | FastAPI, Uvicorn, Pydantic, python-jose |
 | Data | Firestore (REST API) |
 | Auth | JWT + Firebase/Google OAuth |
-| AI | Kutrim API (`Krutrim-spectre-v2`) |
+| AI | Krutrim API (`Krutrim-spectre-v2`) |
 | Email | EmailJS (frontend) + SMTP (backend support) |
 | OCR | Tesseract.js |
 | Printing | react-to-print |
