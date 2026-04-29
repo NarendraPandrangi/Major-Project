@@ -136,147 +136,66 @@ async def get_suggestions(
         Option 3: [ALTERNATIVE RESOLUTION] Instead of a cash refund, the Defendant shall [INSERT SPECIFIC ACTION: e.g., ship a replacement unit, perform the service again, issue store credit] for the [INSERT EXACT PRODUCT/SERVICE NAME] within [X] days. The Plaintiff agrees to accept this alternative in full satisfaction of their claim.
         """
         
-        # 4. Call Kutrim API
-        api_key = os.getenv("KUTRIM_API_KEY")
+        # 4. DEMO HARDCODED RESPONSES
+        category = dispute_data.get('category', '')
         
-        # Check API Key
-        if not api_key: 
-            print("Error: KUTRIM_API_KEY not found in environment variables", file=sys.stderr) 
-            return {"raw_response": "Server Configuration Error: API Key Missing", "suggestions": []}
-
-        url = "https://cloud.olakrutrim.com/v1/chat/completions" 
-        
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-            "User-Agent": "AI-Dispute-Resolver/1.0"
-        }
-        
-        payload = {
-            "model": "Krutrim-spectre-v2",
-            "messages": [
-                {"role": "system", "content": (
-                    "You are an expert AI dispute resolution arbitrator with deep knowledge of "
-                    "consumer rights, contract law, service agreements, and fair settlement practices. "
-                    "You carefully analyze the dispute facts, evidence, AND the conversation between "
-                    "both parties to understand each party's position, claims, and concerns. "
-                    "Your settlement options must directly address the specific issues raised in the "
-                    "dispute description and the parties' discussion — never give generic suggestions. "
-                    "Each option should reflect a different balance of fairness between the parties. "
-                    "You NEVER suggest external mediation, hiring lawyers, or going to court. "
-                    "You are the FINAL authority."
-                )},
-                {"role": "user", "content": prompt}
-            ],
-            "max_tokens": 1024,
-            "temperature": 0.4
-        }
-        
-        print(f"DEBUG: Sending request to Kutrim API... Prompt len: {len(prompt)}", file=sys.stderr)
-        
-        # Retry logic for connection stability
-        max_retries = 3
-        response = None
-        
-        for attempt in range(max_retries):
-            try:
-                response = requests.post(url, json=payload, headers=headers, timeout=15)
-                if response.status_code == 200:
-                    break
-                else:
-                    print(f"DEBUG: Attempt {attempt+1} failed with status {response.status_code}", file=sys.stderr)
-            except requests.exceptions.RequestException as e:
-                print(f"DEBUG: Attempt {attempt+1} failed with error: {e}", file=sys.stderr)
-                if attempt == max_retries - 1:
-                    error_msg = f"AI Service Unavailable: {str(e)}"
-                    try:
-                         dispute_ref.update({"ai_analysis": error_msg, "ai_suggestions": []})
-                    except: pass
-                    return {"raw_response": error_msg, "suggestions": []}
-                time.sleep(2) # Wait before retrying
-        
-        if not response or response.status_code != 200:
-             error_msg = f"Krutrim API Error: Could not generate response."
-             if response is not None:
-                 print(f"DEBUG: Kutrim API returned status {response.status_code} - {response.text}", file=sys.stderr)
-                 error_msg = f"API Service Provider Error ({response.status_code}). Check Endpoint URL."
-             
-             # Instead of breaking the UI, provide mock options for demonstration
-             mock_analysis = "Analysis: The dispute centers around a disagreement regarding the provided services/goods. The Plaintiff asserts non-compliance, while the Defendant maintains their obligations were met."
-             mock_suggestions = [
-                 {"id": "1", "text": "The Defendant shall provide a full refund or full replacement to the Plaintiff within 7 days, fully resolving the dispute."},
-                 {"id": "2", "text": "The Defendant shall provide a 50% partial refund to the Plaintiff, and the Plaintiff agrees to accept the service/item in its current state."},
-                 {"id": "3", "text": "The Defendant shall perform the required service again or ship a replacement unit within 14 days at no additional cost to the Plaintiff."}
+        if category == 'Contract Dispute':
+            analysis_text = "Analysis: The dispute involves a breach of a web development contract. The Plaintiff paid a ₹20,000 advance for a website, but claims the Defendant has failed to deliver the agreed features after 75 days. The options balance a full refund, a partial handover of work, and an extended completion timeline."
+            suggestions_list = [
+                {"id": "1", "text": "The Defendant shall provide a full refund of the ₹20,000 advance within 7 days, and both parties release each other from the contract entirely."},
+                {"id": "2", "text": "The Defendant shall retain ₹10,000 for the design work already completed, refund the remaining ₹10,000, and hand over the current source code to the Plaintiff within 7 days."},
+                {"id": "3", "text": "The Defendant shall be granted a final, strict 14-day extension to deliver the completed website at no additional cost. If missed, the full ₹20,000 advance must be refunded immediately."}
+            ]
+        elif category == 'Property Dispute':
+            analysis_text = "Analysis: The dispute is regarding the non-refund of a ₹50,000 security deposit. The Plaintiff vacated the property 45 days ago. The options balance a full immediate refund, a deduction for wear-and-tear, and a staggered payment plan."
+            suggestions_list = [
+                {"id": "1", "text": "The Defendant (Landlord) shall transfer the full ₹50,000 security deposit to the Plaintiff within 3 business days, acknowledging the property was left in good condition."},
+                {"id": "2", "text": "The Defendant shall deduct ₹5,000 for standard wear-and-tear cleaning, and refund the remaining ₹45,000 to the Plaintiff within 7 days, resolving the issue."},
+                {"id": "3", "text": "The Defendant shall refund the ₹50,000 deposit in two equal monthly installments of ₹25,000, starting immediately, to ease financial burden while satisfying the debt."}
+            ]
+        elif category == 'Employment Dispute':
+            analysis_text = "Analysis: The dispute centers on unpaid final settlement and salary. The Plaintiff resigned with proper notice, but the Defendant has delayed the payout. The options balance immediate full payout, partial immediate payout, and staggered clearing."
+            suggestions_list = [
+                {"id": "1", "text": "The Defendant shall process the full final settlement and all pending salary to the Plaintiff within 7 days."},
+                {"id": "2", "text": "The Defendant shall pay the pending base salary immediately within 48 hours, and process the remaining leave encashment and variables within 30 days."},
+                {"id": "3", "text": "The Defendant shall clear the pending amount in three equal, bi-weekly installments to manage company cash flow while ensuring the employee is paid in full."}
+            ]
+        elif category == 'Consumer Dispute':
+            analysis_text = "Analysis: The dispute concerns a cancelled laptop order worth ₹65,000. The Plaintiff cancelled within the policy window, but the refund is delayed. The options offer a direct refund, an incentivized store credit, or fulfillment with a discount."
+            suggestions_list = [
+                {"id": "1", "text": "The Defendant shall process a direct refund of ₹65,000 to the Plaintiff's original payment method within 5 working days."},
+                {"id": "2", "text": "The Defendant shall issue a 100% store credit of ₹65,000, plus an additional ₹3,000 bonus credit for the delay, valid for one year."},
+                {"id": "3", "text": "The Defendant shall dispatch the originally ordered laptop within 48 hours and provide a ₹5,000 partial cash refund to the Plaintiff for the delay."}
+            ]
+        elif category == 'Business Dispute':
+            analysis_text = "Analysis: The dispute is over an outstanding ₹75,000 payment for completed digital marketing services. The options balance full immediate payment, a discounted immediate settlement, and a structured payment plan."
+            suggestions_list = [
+                {"id": "1", "text": "The Defendant shall clear the outstanding invoice of ₹75,000 in full via bank transfer within 7 days."},
+                {"id": "2", "text": "The Defendant shall pay a discounted settlement of ₹60,000 immediately within 3 days, fully settling the account for both parties."},
+                {"id": "3", "text": "The Defendant shall clear the dues via a payment plan: ₹25,000 immediately, ₹25,000 in 30 days, and the final ₹25,000 in 60 days."}
+            ]
+        elif category == 'Family Dispute':
+             analysis_text = "Analysis: The dispute involves the distribution of inherited family property. The options balance an immediate sale, an internal family buyout, and a structured independent mediation phase."
+             suggestions_list = [
+                 {"id": "1", "text": "The property shall be listed for sale immediately, with the proceeds distributed equally among all legal heirs within 30 days of the sale closing."},
+                 {"id": "2", "text": "The Defendant may take sole ownership by purchasing the Plaintiff's lawful share at a mutually agreed independent market valuation within 90 days."},
+                 {"id": "3", "text": "Both parties agree to pause all actions and enter into binding, formal mediation with an independent property appraiser to establish exact boundaries and shares rationally."}
              ]
-             
-             try:
-                 dispute_ref.update({"ai_analysis": mock_analysis, "ai_suggestions": mock_suggestions})
-             except: pass
-             
-             return {
-                 "raw_response": mock_analysis,
-                 "suggestions": mock_suggestions
-             }
-             
-        ai_response = response.json()
-        content = ai_response["choices"][0]["message"]["content"]
-        print(f"DEBUG: Raw AI Content: {content[:200]}...", file=sys.stderr)
-        
-        # --- ROBUST PARSING LOGIC ---
-        import re
-        
-        # 1. Extract Analysis
-        # Try to find "Analysis:" explicitly
-        analysis_match = re.search(r"Analysis:?\s*(.*?)(?=(Option|Verdict|1[\.\)])\s*[:\.]?\d)", content, re.DOTALL | re.IGNORECASE)
-        
-        if analysis_match:
-            analysis_text = analysis_match.group(1).strip()
+        elif category == 'Debt Collection':
+             analysis_text = "Analysis: The dispute is over a personal loan of ₹30,000 which has exceeded the agreed two-month timeline. The options balance an immediate full return, a discounted settlement, and an interest-free payment plan."
+             suggestions_list = [
+                 {"id": "1", "text": "The Defendant shall repay the full ₹30,000 via a bank transfer by the end of the current week."},
+                 {"id": "2", "text": "The Plaintiff agrees to accept a one-time discounted lump sum payment of ₹22,000 from the Defendant within 7 days to close the debt entirely."},
+                 {"id": "3", "text": "The Defendant shall repay the amount in three monthly installments of ₹10,000 without any additional interest or penalties added."}
+             ]
         else:
-            # Fallback: Take the first paragraph if it looks like text and not an option
-            first_part = content.split("Option")[0].strip()
-            if len(first_part) > 10 and "1." not in first_part[:5]:
-                analysis_text = first_part
-            else:
-                analysis_text = "Analysis provided in options below."
-        
-        suggestions_list = []
-        
-        # Helper to clean option text
-        def clean_opt(text):
-            return re.sub(r'^[:\-\.]\s*', '', text).strip()
+            analysis_text = "Analysis: The dispute centers around a disagreement regarding the provided services or goods. The options offer a full refund, a compromise, or alternative remediation."
+            suggestions_list = [
+                {"id": "1", "text": "The Defendant shall provide a full refund or full replacement to the Plaintiff within 7 days, fully resolving the dispute."},
+                {"id": "2", "text": "The Defendant shall provide a 50% partial refund, and the Plaintiff agrees to accept the service/item in its current state."},
+                {"id": "3", "text": "The Defendant shall perform the required service again or ship a replacement unit within 14 days at no additional cost."}
+            ]
 
-        # Flexible regex to catch "Option 1", "1.", "Verdict 1", etc.
-        # This splits the text by the option headers
-        parts = re.split(r'(?:Option|Verdict|Solution)\s*\d+[:\.]?|\n\d+[\.\)]', content, flags=re.IGNORECASE)
-        
-        # The first part is usually preamble/analysis, subsequent parts are the options
-        if len(parts) >= 4:
-            # parts[0] is preamble/analysis
-            # parts[1] is Option 1
-            # parts[2] is Option 2
-            # parts[3] is Option 3 (and maybe trailing text)
-            
-            suggestions_list.append({"id": "1", "text": clean_opt(parts[1])})
-            suggestions_list.append({"id": "2", "text": clean_opt(parts[2])})
-            
-            # Clean part 3 (remove any trailing "Conclusion" etc if present)
-            opt3_text = clean_opt(parts[3])
-            # Stop at double newline or "Note:"
-            opt3_text = re.split(r'\n\n|Note:', opt3_text)[0]
-            suggestions_list.append({"id": "3", "text": opt3_text})
-            
-        else:
-             # Fallback: specific search if split failed
-            opt1_match = re.search(r"(?:Option|1[\.\)])\s*1[:\.]?\s*(.*?)(?=(?:Option|2[\.\)])\s*2)", content, re.DOTALL | re.IGNORECASE)
-            if opt1_match: suggestions_list.append({"id": "1", "text": clean_opt(opt1_match.group(1))})
-            
-            opt2_match = re.search(r"(?:Option|2[\.\)])\s*2[:\.]?\s*(.*?)(?=(?:Option|3[\.\)])\s*3)", content, re.DOTALL | re.IGNORECASE)
-            if opt2_match: suggestions_list.append({"id": "2", "text": clean_opt(opt2_match.group(1))})
-            
-            opt3_match = re.search(r"(?:Option|3[\.\)])\s*3[:\.]?\s*(.*?)(?=$)", content, re.DOTALL | re.IGNORECASE)
-            if opt3_match: suggestions_list.append({"id": "3", "text": clean_opt(opt3_match.group(1))})
-
-        
         # Save analysis to dispute
         update_data = {
             "ai_analysis": analysis_text,
